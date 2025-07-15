@@ -1,5 +1,6 @@
 import connectMongoDB from '../../libs/mongoose.js';
 import Order from '../../models/Orders.js';
+import Clients from '../../models/Clients.js';
 import User from '../../models/User.js';
 import crypto from 'crypto';
 import { sendOrderConfirmationEmail } from '../../utils/sendOrderConfirmationEmail.js';
@@ -37,18 +38,16 @@ export default class ClientOrderService {
         return now.getHours() > hour || (now.getHours() === hour && now.getMinutes() > minute);
     }
 
-    async findOrCreateUser({ name, email, password, storeId }) {
-        let user = await User.findOne({ mail: email });
+    async findOrCreateClient({ name, email, password, storeId }) {
+        let user = await Clients.findOne({ email });
 
         if (!user) {
-            // Si no hay contraseña pasada, generamos una aleatoria simple
             const generatedPassword = password || 'fluvi-' + crypto.randomInt(1000, 9999);
 
-            user = new User({
+            user = new Clients({
                 name,
-                mail: email,
+                email,
                 password: generatedPassword,
-                role: 'user',
                 storeId,
             });
 
@@ -64,6 +63,7 @@ export default class ClientOrderService {
 
 
 
+
     createOrder = async (data) => {
         try {
             // 📅 Calcular fecha de entrega si se indica horario
@@ -73,7 +73,7 @@ export default class ClientOrderService {
             }
 
             // 👤 Buscar o crear el usuario
-            const { user, wasCreated, generatedPassword } = await this.findOrCreateUser({
+            const { user, wasCreated, generatedPassword } = await this.findOrCreateClient({
                 name: data.customer.name,
                 email: data.customer.email,
                 password: data.customer.password,

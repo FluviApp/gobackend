@@ -51,7 +51,9 @@ export default class ClientZonesService {
             const stores = await Stores.find({
                 _id: { $in: storeIds },
                 availableInMarketplace: true,
+                payment: true,
             })
+
                 .select('name image phone address schedules')
                 .lean();
 

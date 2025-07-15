@@ -26,5 +26,27 @@ export default class ClientZonesController {
         }
     };
 
+    validateStoreLocation = async (req, res) => {
+        try {
+            const { lat, lon, storeId } = req.body;
+
+            if (!lat || !lon || !storeId) {
+                return res.status(400).json({ success: false, message: 'Faltan datos' });
+            }
+
+            const result = await clientZonesService.isLocationInStoreZone({ lat, lon, storeId });
+
+            return res.status(200).json({
+                success: true,
+                data: {
+                    isCovered: result
+                }
+            });
+        } catch (error) {
+            console.error('❌ Error en validateStoreLocation:', error);
+            return res.status(500).json({ success: false, message: 'Error al validar cobertura' });
+        }
+    };
+
 
 }

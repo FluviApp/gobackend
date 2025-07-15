@@ -85,4 +85,44 @@ export default class ClientZonesService {
             };
         }
     };
+
+    isLocationInStoreZone = async ({ lat, lon, storeId }) => {
+        try {
+            // Validar que la tienda esté activa y habilitada para pagos
+            const store = await Stores.findOne({ _id: storeId, availableInMarketplace: true, payment: true }).lean();
+            if (!store) return false;
+
+            // Buscar zonas de esa tienda
+            const zones = await Zones.find({ storeId }).lean();
+            if (!zones.length) return false;
+
+            const isPointInPolygon = (point, polygon) => {
+                let inside = false;
+                const x = point.lat, y = point.lng;
+
+                for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                    const xi = polygon[i].lat, yi = polygon[i].lng;
+                    const xj = polygon[j].lat, yj = polygon[j].lng;
+
+                    const intersect = ((yi > y) !== (yj > y)) &&
+                        (x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-10) + xi);
+
+                    if (intersect) inside = !inside;
+                }
+
+                return inside;
+            };
+
+            // Revisar si alguna zona contiene la ubicación
+            const matching = zones.some(zone =>
+                isPointInPolygon({ lat, lng: lon }, zone.polygon)
+            );
+
+            return matching;
+        } catch (error) {
+            console.error('❌ Servicio - Error en isLocationInStoreZone:', error);
+            return false;
+        }
+    };
+
 }

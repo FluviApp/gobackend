@@ -60,6 +60,11 @@ const storeSchema = new Schema(
             required: true,
             default: false,
         },
+        payment: {
+            type: Boolean,
+            required: true,
+            default: true,
+        }
 
     },
     {

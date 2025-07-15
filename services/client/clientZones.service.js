@@ -90,13 +90,39 @@ export default class ClientZonesService {
 
     isLocationInStoreZone = async ({ lat, lon, storeId }) => {
         try {
-            // Validar que la tienda esté activa y habilitada para pagos
-            const store = await Stores.findOne({ _id: storeId, availableInMarketplace: true, payment: true }).lean();
-            if (!store) return false;
+            const store = await Stores.findOne({ _id: storeId }).lean();
+            if (!store) {
+                return {
+                    allowed: false,
+                    reason: 'not_found',
+                    message: 'Distribuidor no encontrado.',
+                };
+            }
 
-            // Buscar zonas de esa tienda
+            if (!store.availableInMarketplace) {
+                return {
+                    allowed: false,
+                    reason: 'unavailable',
+                    message: 'Este distribuidor ha desactivado sus repartos. Puedes buscar otro en el menú lateral.',
+                };
+            }
+
+            if (!store.payment) {
+                return {
+                    allowed: false,
+                    reason: 'payment_blocked',
+                    message: 'Lamentamos esto, pero el distribuidor no está al día con sus pagos. Puedes esperar o elegir otro en el menú lateral.',
+                };
+            }
+
             const zones = await Zones.find({ storeId }).lean();
-            if (!zones.length) return false;
+            if (!zones.length) {
+                return {
+                    allowed: false,
+                    reason: 'no_zones',
+                    message: 'Este distribuidor no tiene zonas configuradas actualmente. Busca otro en el menú lateral.',
+                };
+            }
 
             const isPointInPolygon = (point, polygon) => {
                 let inside = false;
@@ -115,16 +141,32 @@ export default class ClientZonesService {
                 return inside;
             };
 
-            // Revisar si alguna zona contiene la ubicación
             const matching = zones.some(zone =>
                 isPointInPolygon({ lat, lng: lon }, zone.polygon)
             );
 
-            return matching;
+            if (!matching) {
+                return {
+                    allowed: false,
+                    reason: 'out_of_zone',
+                    message: 'El distribuidor dejó de hacer repartos en tu zona. Puedes cambiar de distribuidor en el menú lateral.',
+                };
+            }
+
+            return {
+                allowed: true,
+                message: 'Ubicación válida para esta tienda.',
+            };
+
         } catch (error) {
             console.error('❌ Servicio - Error en isLocationInStoreZone:', error);
-            return false;
+            return {
+                allowed: false,
+                reason: 'server_error',
+                message: 'Hubo un error al verificar la zona. Intenta más tarde.',
+            };
         }
     };
+
 
 }

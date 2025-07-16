@@ -90,14 +90,23 @@ export default class ClientZonesService {
 
     isLocationInStoreZone = async ({ lat, lon, storeId }) => {
         try {
+            console.log('📥 Validando zona para:', { lat, lon, storeId });
+
             const store = await Stores.findOne({ _id: storeId }).lean();
             if (!store) {
+                console.log('❌ Tienda no encontrada');
                 return {
                     allowed: false,
                     reason: 'not_found',
                     message: 'Distribuidor no encontrado.',
                 };
             }
+
+            console.log('🏪 Tienda encontrada:', store.name);
+            console.log('⚙️ Flags:', {
+                availableInMarketplace: store.availableInMarketplace,
+                payment: store.payment
+            });
 
             if (!store.availableInMarketplace) {
                 return {
@@ -116,6 +125,8 @@ export default class ClientZonesService {
             }
 
             const zones = await Zones.find({ storeId }).lean();
+            console.log('📦 Zonas encontradas:', zones.length);
+
             if (!zones.length) {
                 return {
                     allowed: false,
@@ -141,11 +152,16 @@ export default class ClientZonesService {
                 return inside;
             };
 
-            const matching = zones.some(zone =>
-                isPointInPolygon({ lat, lng: lon }, zone.polygon)
-            );
+            let matchedZoneCount = 0;
 
-            if (!matching) {
+            zones.forEach(zone => {
+                const inZone = isPointInPolygon({ lat, lng: lon }, zone.polygon);
+                console.log(`📍 Zona ${zone._id} => dentro:`, inZone);
+                if (inZone) matchedZoneCount++;
+            });
+
+            if (matchedZoneCount === 0) {
+                console.log('🚫 Ninguna zona contiene el punto');
                 return {
                     allowed: false,
                     reason: 'out_of_zone',
@@ -153,6 +169,7 @@ export default class ClientZonesService {
                 };
             }
 
+            console.log('✅ Punto dentro de zona(s)');
             return {
                 allowed: true,
                 message: 'Ubicación válida para esta tienda.',
@@ -167,6 +184,7 @@ export default class ClientZonesService {
             };
         }
     };
+
 
 
 }

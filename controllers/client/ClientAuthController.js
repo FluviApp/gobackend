@@ -77,10 +77,11 @@ export default class ClientAuthController {
 
 
     updateClient = async (req, res) => {
+
         try {
             const { id } = req.params;
             const updateData = req.body;
-
+            console.log("📥 Update recibido para ID", id, "con:", updateData);
             const updatedClient = await ClientAuth.updateClient(id, updateData);
 
             if (!updatedClient) {

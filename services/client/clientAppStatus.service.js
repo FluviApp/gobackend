@@ -49,9 +49,52 @@ export default class ClientAppStatusService {
                 return { success: false, message: 'Zonas de entrega no encontradas' };
             }
 
+            // 🔽 Agregamos filtrado de horarios válidos
+            const now = new Date();
+            const todayIndex = now.getDay(); // 0 = domingo, ..., 6 = sábado
+            const currentHour = now.getHours();
+            const currentMinute = now.getMinutes();
+            const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+            const filterSchedule = (schedule) => {
+                const filtered = {};
+
+                daysOfWeek.forEach((day, index) => {
+                    const dayConfig = schedule[day];
+                    if (!dayConfig?.enabled || !dayConfig?.hours) return;
+
+                    const validHours = {};
+
+                    Object.entries(dayConfig.hours).forEach(([hourStr, isActive]) => {
+                        if (!isActive) return;
+
+                        const [hour, minute] = hourStr.split(':').map(Number);
+
+                        if (index === todayIndex) {
+                            if (hour < currentHour || (hour === currentHour && minute <= currentMinute)) {
+                                return;
+                            }
+                        }
+
+                        if (index > todayIndex || index === todayIndex) {
+                            validHours[hourStr] = true;
+                        }
+                    });
+
+                    if (Object.keys(validHours).length > 0) {
+                        filtered[day] = {
+                            enabled: true,
+                            hours: validHours
+                        };
+                    }
+                });
+
+                return filtered;
+            };
+
             const formattedZones = zones.map(zone => ({
                 deliveryCost: zone.deliveryCost,
-                schedule: zone.schedule
+                schedule: filterSchedule(zone.schedule)
             }));
 
             return {
@@ -70,5 +113,4 @@ export default class ClientAppStatusService {
             };
         }
     };
-
 }

@@ -26,6 +26,7 @@ import StoreDiscountCodesRoutes from './routes/store/storeDiscountCodesRoute.js'
 
 //CLIENTE
 import ClientAppStatusRoutes from './routes/client/ClientAppStatusRoutes.js';
+import ClientVersionRoutes from './routes/client/ClientVersionRoutes.js';
 import ClientAuthRoutes from './routes/client/ClientAuthRoutes.js';
 import ClientProductsRoutes from './routes/client/ClientProductsRoute.js';
 import ClientHomeRoutes from './routes/client/ClientHomeRoutes.js';
@@ -83,6 +84,7 @@ app.use('/api/store', StoreDiscountCodesRoutes);
 
 // Rutas del cliente
 app.use('/api/client', ClientAppStatusRoutes);
+app.use('/api/client', ClientVersionRoutes);
 app.use('/api/client', ClientAuthRoutes);
 app.use('/api/client', ClientProductsRoutes);
 app.use('/api/client', ClientHomeRoutes);

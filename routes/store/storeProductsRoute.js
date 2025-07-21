@@ -6,6 +6,8 @@ const storeProductsController = new StoreProductsController();
 
 router.get('/products', storeProductsController.getAllProducts);
 router.get('/products/all', storeProductsController.getAllProductsUnfiltered);
+router.get('/products/select', storeProductsController.getAllProductsForSelect);
+
 router.delete('/products/:id', storeProductsController.deleteProduct);
 router.put('/products/:id/add-category', storeProductsController.addCategoryToProduct);
 router.put('/products/:id/add-subcategory', storeProductsController.addSubcategoryToProduct);

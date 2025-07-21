@@ -86,11 +86,14 @@ const orderSchema = new Schema(
             required: true,
         },
 
+
+
         paymentMethod: {
             type: String,
-            enum: ['efectivo', 'transferencia', 'webpay', 'mercadopago', 'tarjeta_local', 'otro'],
+            enum: ['efectivo', 'transferencia', 'webpay', 'mercadopago', 'tarjeta', 'otro'], // ✅ solo 'tarjeta'
             required: true,
         },
+
 
         status: {
             type: String,

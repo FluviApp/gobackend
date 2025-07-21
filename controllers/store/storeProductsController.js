@@ -42,6 +42,28 @@ export default class StoreProductsController {
             });
         }
     };
+
+    getAllProductsForSelect = async (req, res) => {
+        try {
+            const { storeId, search = '', limit = 50 } = req.query;
+
+            if (!storeId) {
+                return res.status(400).json({ success: false, message: 'storeId es requerido' });
+            }
+
+            const result = await storeProductsService.getAllProductsForSelect({ storeId, search, limit });
+            return res.status(200).json({
+                success: true,
+                message: 'Productos y packs cargados correctamente',
+                data: result
+            });
+        } catch (error) {
+            console.error('❌ Error en getAllProductsForSelect:', error);
+            return res.status(500).json({ success: false, message: 'Error al cargar productos' });
+        }
+    };
+
+
     getAllProductsUnfiltered = async (req, res) => {
         try {
             const { page = 1, limit = 10, search = '', storeId } = req.query;

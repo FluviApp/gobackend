@@ -149,14 +149,20 @@ export default class StoreOrdersService {
 
     updateOrder = async (id, data) => {
         try {
+            console.log('🧪 Ejecutando updateOrder con ID:', id);
+            console.log('🧪 Datos recibidos para actualizar:', data);
+
             // 1️⃣ Obtener el pedido actual
             const existingOrder = await Orders.findById(id);
             if (!existingOrder) {
+                console.warn('⚠️ Pedido no encontrado');
                 return { success: false, message: 'Pedido no encontrado' };
             }
 
             const previousStatus = existingOrder.status;
             const newStatus = data.status;
+
+            console.log(`🔄 Estado anterior: ${previousStatus} → Nuevo: ${newStatus}`);
 
             // 2️⃣ Actualizar el pedido
             const updated = await Orders.findByIdAndUpdate(id, { $set: data }, { new: true });
@@ -164,8 +170,18 @@ export default class StoreOrdersService {
             // 3️⃣ Si cambió el estado, enviar correo
             if (newStatus && newStatus !== previousStatus) {
                 const { name, email } = updated.customer || {};
+                console.log('👤 Cliente actualizado:', { name, email });
+
                 if (email) {
-                    await sendOrderStatusUpdateEmail({ name, email, status: newStatus });
+                    try {
+                        console.log('📨 Enviando correo de estado actualizado...');
+                        await sendOrderStatusUpdateEmail({ name, email, status: newStatus });
+                        console.log('✅ Correo enviado con éxito');
+                    } catch (e) {
+                        console.error('❌ Error al enviar el correo:', e);
+                    }
+                } else {
+                    console.warn('⚠️ No se encontró email del cliente');
                 }
             }
 
@@ -182,6 +198,7 @@ export default class StoreOrdersService {
             };
         }
     };
+
 
 
     deleteOrder = async (id) => {

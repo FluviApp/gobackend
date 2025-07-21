@@ -26,30 +26,45 @@ export const sendAdminNewOrderNotification = async ({ email, order }) => {
         })
         : 'No programada';
 
-    const productList = products
-        .map(
-            (p) =>
-                `<li><strong>${p.name}</strong> x${p.quantity} - $${p.totalPrice.toLocaleString()}</li>`
+    const productList = (products || [])
+        .map((p) =>
+            `<li><strong>${p.name}</strong> x${p.quantity} — $${p.totalPrice?.toLocaleString('es-CL')}</li>`
         )
         .join('');
 
     const html = `
-        <div style="font-family: Arial, sans-serif; padding: 24px; max-width: 600px; margin: auto; background: #f9f9f9; border-radius: 12px;">
-            <h2 style="color: #1e90ff;">🛒 Nuevo pedido recibido</h2>
-            <p><strong>Pedido:</strong> #${_id}</p>
-            <p><strong>Cliente:</strong> ${customer?.name || 'N/A'}</p>
-            <p><strong>Email:</strong> ${customer?.email || 'N/A'}</p>
-            <p><strong>Teléfono:</strong> ${customer?.phone || 'N/A'}</p>
-            <p><strong>Dirección:</strong> ${customer?.address || 'N/A'}</p>
-            <p><strong>Tipo de entrega:</strong> ${deliveryType}</p>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #ffffff; border-radius: 12px; padding: 24px; border: 1px solid #eee;">
+            <h2 style="color: #0099FF; margin-bottom: 16px;">🚨 Nuevo pedido recibido</h2>
+
+            <p><strong>N° Pedido:</strong> ${_id}</p>
+            <p><strong>Cliente:</strong> ${customer?.name || 'No informado'}</p>
+            <p><strong>Email:</strong> ${customer?.email || 'No informado'}</p>
+            <p><strong>Teléfono:</strong> ${customer?.phone || 'No informado'}</p>
+            <p><strong>Dirección:</strong> ${customer?.address || 'No informado'}</p>
+
+            <p><strong>Tipo de entrega:</strong> ${deliveryType === 'delivery' ? '🚚 Delivery' : '🏃 Retiro'}</p>
             <p><strong>Fecha de entrega:</strong> ${formattedDate}</p>
-            <p><strong>Método de pago:</strong> ${paymentMethod}</p>
-            <p><strong>Origen:</strong> ${origin}</p>
-            <hr />
-            <p><strong>Productos:</strong></p>
-            <ul>${productList}</ul>
-            <hr />
-            <p><strong>Total:</strong> $${finalPrice || price}</p>
+            <p><strong>Método de pago:</strong> ${paymentMethod || 'No informado'}</p>
+            <p><strong>Origen:</strong> ${origin || 'App'}</p>
+
+            <hr style="margin: 24px 0;" />
+
+            <h3 style="color: #333;">🧾 Productos</h3>
+            <ul style="padding-left: 20px; margin-bottom: 24px;">
+                ${productList || '<li>No se informaron productos</li>'}
+            </ul>
+
+            <p style="font-size: 18px; font-weight: bold; color: #0099FF;">
+                Total: $${(finalPrice || price)?.toLocaleString('es-CL')}
+            </p>
+
+            <div style="margin-top: 32px;">
+                <a href="https://fluvi.cl/admin" style="display: inline-block; background-color: #0099FF; color: white; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600;">Abrir panel de pedidos</a>
+            </div>
+
+            <p style="font-size: 12px; color: #999; margin-top: 32px;">
+                Este correo fue generado automáticamente. No respondas a esta dirección.
+            </p>
         </div>
     `;
 

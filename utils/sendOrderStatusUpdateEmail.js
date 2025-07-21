@@ -1,4 +1,4 @@
-import resend from '../libs/resend.js';
+import getResendClient from '../libs/resend.js'; // ✅ FIX
 
 const statusMessages = {
     pendiente: 'Hemos recibido tu pedido y lo revisaremos pronto.',
@@ -13,6 +13,7 @@ const statusMessages = {
 
 export const sendOrderStatusUpdateEmail = async ({ name, email, status }) => {
     try {
+        const resend = getResendClient(); // ✅ FIX
         const message = statusMessages[status] || 'Tu pedido ha cambiado de estado.';
 
         const response = await resend.emails.send({
@@ -20,17 +21,19 @@ export const sendOrderStatusUpdateEmail = async ({ name, email, status }) => {
             to: email,
             subject: `📦 Estado actualizado: ${status.replace('_', ' ').toUpperCase()}`,
             html: `
-                <div style="font-family: Arial, sans-serif; padding: 24px; max-width: 600px; margin: auto; background: #f4f4f4; border-radius: 12px;">
-                    <h2 style="color: #1e90ff;">Hola ${name || 'amig@'} 👋</h2>
-                    <p>${message}</p>
+  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #ffffff; border-radius: 12px; padding: 24px; border: 1px solid #eee;">
+    <h2 style="color: #0099FF;">📦 Tu pedido ha cambiado de estado</h2>
+    <p style="font-size: 16px; color: #333;">Hola ${name || 'amig@'} 👋</p>
+    <p style="font-size: 16px; color: #333;">${message}</p>
 
-                    <div style="margin: 24px 0;">
-                        <a href="https://fluvi.cl" style="background-color: #1e90ff; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px;">Ver mi pedido</a>
-                    </div>
+    <div style="margin: 24px 0;">
+      <a href="https://fluvi.cl" style="background-color: #0099FF; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600;">Ver mi pedido</a>
+    </div>
 
-                    <p style="font-size: 12px; color: #777;">Este correo es solo informativo. No respondas a esta dirección.</p>
-                </div>
-            `
+    <p style="font-size: 14px; color: #777;">Gracias por confiar en Fluvi 💧</p>
+    <p style="font-size: 12px; color: #aaa;">Este correo fue generado automáticamente. No respondas a esta dirección.</p>
+  </div>
+`
         });
 
         console.log(`📬 Email enviado: estado actualizado a "${status}"`);

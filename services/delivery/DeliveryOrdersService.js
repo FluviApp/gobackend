@@ -1,4 +1,5 @@
 import Order from '../../models/Orders.js';
+import { sendOrderStatusUpdateEmail } from '../../utils/sendOrderStatusUpdateEmail.js'; // 👈 importar
 
 export default class DeliveryOrdersService {
     getOrdersByDeliveryId = async (deliveryId) => {
@@ -31,15 +32,15 @@ export default class DeliveryOrdersService {
                 'deliveryPerson.id': deliveryId,
                 $or: [
                     {
-                        deliveryDate: { $gte: todayStart, $lte: todayEnd } // hoy: todos los estados
+                        deliveryDate: { $gte: todayStart, $lte: todayEnd }
                     },
                     {
                         deliveryDate: yesterday,
-                        status: { $in: nonFinalStatuses } // ayer: solo si siguen activos
+                        status: { $in: nonFinalStatuses }
                     },
                     {
                         deliveryDate: tomorrow,
-                        status: { $in: nonFinalStatuses } // mañana: solo si siguen activos
+                        status: { $in: nonFinalStatuses }
                     }
                 ]
             }).sort({ deliveryDate: 1, 'deliverySchedule.hour': 1 });
@@ -76,10 +77,24 @@ export default class DeliveryOrdersService {
 
     updateOrderById = async (orderId, updateData) => {
         try {
+            const existingOrder = await Order.findById(orderId);
+            if (!existingOrder) throw new Error('Pedido no encontrado');
+
+            const previousStatus = existingOrder.status;
+            const newStatus = updateData.status;
+
             const updated = await Order.findByIdAndUpdate(orderId, updateData, {
                 new: true,
                 runValidators: true,
             });
+
+            // 📧 Enviar correo si el estado cambió
+            if (newStatus && newStatus !== previousStatus) {
+                const { name, email } = updated.customer || {};
+                if (email) {
+                    await sendOrderStatusUpdateEmail({ name, email, status: newStatus });
+                }
+            }
 
             return updated;
         } catch (error) {

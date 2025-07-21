@@ -1,5 +1,6 @@
 import connectMongoDB from '../../libs/mongoose.js';
 import Product from '../../models/Product.js';
+import Packs from '../../models/Packs.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -109,6 +110,45 @@ export default class StoreProductsService {
             };
         }
     };
+
+    getAllProductsForSelect = async ({ storeId, search = '', limit = 50 }) => {
+        const query = { storeId };
+
+        if (search) {
+            query.name = { $regex: search, $options: 'i' };
+        }
+
+        const products = await Product.find(query)
+            .sort({ createdAt: -1 })
+            .limit(Number(limit))
+            .lean();
+
+        const packs = await Packs.find(query)
+            .sort({ createdAt: -1 })
+            .limit(Number(limit))
+            .lean();
+
+        const normalizedProducts = products.map(p => ({
+            _id: p._id,
+            name: p.name,
+            priceBase: p.priceBase ?? p.price,
+            priceDiscount: p.priceDiscount,
+            isPack: false
+        }));
+
+        const normalizedPacks = packs.map(p => ({
+            _id: p._id,
+            name: `${p.name} (Pack)`,
+            priceBase: p.price,
+            priceDiscount: null,
+            isPack: true,
+            items: p.products
+        }));
+
+        return [...normalizedProducts, ...normalizedPacks];
+    };
+
+
 
     getAllProductsUnfiltered = async ({ storeId, search = '', page = 1, limit = 10 }) => {
         try {

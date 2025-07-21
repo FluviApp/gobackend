@@ -88,13 +88,108 @@ export default class ClientZonesService {
         }
     };
 
+    // isLocationInStoreZone = async ({ lat, lon, storeId }) => {
+    //     try {
+    //         console.log('📥 Validando zona para:', { lat, lon, storeId });
+
+    //         const store = await Stores.findOne({ _id: storeId }).lean();
+    //         if (!store) {
+    //             console.log('❌ Tienda no encontrada');
+    //             return {
+    //                 allowed: false,
+    //                 reason: 'not_found',
+    //                 message: 'Distribuidor no encontrado.',
+    //             };
+    //         }
+
+    //         console.log('🏪 Tienda encontrada:', store.name);
+    //         console.log('⚙️ Flags:', {
+    //             availableInMarketplace: store.availableInMarketplace,
+    //             payment: store.payment
+    //         });
+
+    //         if (!store.availableInMarketplace) {
+    //             return {
+    //                 allowed: false,
+    //                 reason: 'unavailable',
+    //                 message: 'Este distribuidor ha desactivado sus repartos. Puedes buscar otro en el menú lateral.',
+    //             };
+    //         }
+
+    //         if (!store.payment) {
+    //             return {
+    //                 allowed: false,
+    //                 reason: 'payment_blocked',
+    //                 message: 'Lamentamos esto, pero el distribuidor no está al día con sus pagos. Puedes esperar o elegir otro en el menú lateral.',
+    //             };
+    //         }
+
+    //         const zones = await Zones.find({ storeId }).lean();
+    //         console.log('📦 Zonas encontradas:', zones.length);
+
+    //         if (!zones.length) {
+    //             return {
+    //                 allowed: false,
+    //                 reason: 'no_zones',
+    //                 message: 'Este distribuidor no tiene zonas configuradas actualmente. Busca otro en el menú lateral.',
+    //             };
+    //         }
+
+    //         const isPointInPolygon = (point, polygon) => {
+    //             let inside = false;
+    //             const x = point.lat, y = point.lng;
+
+    //             for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    //                 const xi = polygon[i].lat, yi = polygon[i].lng;
+    //                 const xj = polygon[j].lat, yj = polygon[j].lng;
+
+    //                 const intersect = ((yi > y) !== (yj > y)) &&
+    //                     (x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-10) + xi);
+
+    //                 if (intersect) inside = !inside;
+    //             }
+
+    //             return inside;
+    //         };
+
+    //         let matchedZoneCount = 0;
+
+    //         zones.forEach(zone => {
+    //             const inZone = isPointInPolygon({ lat, lng: lon }, zone.polygon);
+    //             console.log(`📍 Zona ${zone._id} => dentro:`, inZone);
+    //             if (inZone) matchedZoneCount++;
+    //         });
+
+    //         if (matchedZoneCount === 0) {
+    //             console.log('🚫 Ninguna zona contiene el punto');
+    //             return {
+    //                 allowed: false,
+    //                 reason: 'out_of_zone',
+    //                 message: 'El distribuidor dejó de hacer repartos en tu zona. Puedes cambiar de distribuidor en el menú lateral.',
+    //             };
+    //         }
+
+    //         console.log('✅ Punto dentro de zona(s)');
+    //         return {
+    //             allowed: true,
+    //             message: 'Ubicación válida para esta tienda.',
+    //         };
+
+    //     } catch (error) {
+    //         console.error('❌ Servicio - Error en isLocationInStoreZone:', error);
+    //         return {
+    //             allowed: false,
+    //             reason: 'server_error',
+    //             message: 'Hubo un error al verificar la zona. Intenta más tarde.',
+    //         };
+    //     }
+    // };
     isLocationInStoreZone = async ({ lat, lon, storeId }) => {
         try {
             console.log('📥 Validando zona para:', { lat, lon, storeId });
 
             const store = await Stores.findOne({ _id: storeId }).lean();
             if (!store) {
-                console.log('❌ Tienda no encontrada');
                 return {
                     allowed: false,
                     reason: 'not_found',
@@ -102,17 +197,11 @@ export default class ClientZonesService {
                 };
             }
 
-            console.log('🏪 Tienda encontrada:', store.name);
-            console.log('⚙️ Flags:', {
-                availableInMarketplace: store.availableInMarketplace,
-                payment: store.payment
-            });
-
             if (!store.availableInMarketplace) {
                 return {
                     allowed: false,
                     reason: 'unavailable',
-                    message: 'Este distribuidor ha desactivado sus repartos. Puedes buscar otro en el menú lateral.',
+                    message: 'Este distribuidor ha desactivado sus repartos.',
                 };
             }
 
@@ -120,18 +209,16 @@ export default class ClientZonesService {
                 return {
                     allowed: false,
                     reason: 'payment_blocked',
-                    message: 'Lamentamos esto, pero el distribuidor no está al día con sus pagos. Puedes esperar o elegir otro en el menú lateral.',
+                    message: 'Distribuidor con pagos pendientes.',
                 };
             }
 
             const zones = await Zones.find({ storeId }).lean();
-            console.log('📦 Zonas encontradas:', zones.length);
-
             if (!zones.length) {
                 return {
                     allowed: false,
                     reason: 'no_zones',
-                    message: 'Este distribuidor no tiene zonas configuradas actualmente. Busca otro en el menú lateral.',
+                    message: 'Este distribuidor no tiene zonas configuradas.',
                 };
             }
 
@@ -152,27 +239,22 @@ export default class ClientZonesService {
                 return inside;
             };
 
-            let matchedZoneCount = 0;
-
-            zones.forEach(zone => {
+            for (const zone of zones) {
                 const inZone = isPointInPolygon({ lat, lng: lon }, zone.polygon);
-                console.log(`📍 Zona ${zone._id} => dentro:`, inZone);
-                if (inZone) matchedZoneCount++;
-            });
-
-            if (matchedZoneCount === 0) {
-                console.log('🚫 Ninguna zona contiene el punto');
-                return {
-                    allowed: false,
-                    reason: 'out_of_zone',
-                    message: 'El distribuidor dejó de hacer repartos en tu zona. Puedes cambiar de distribuidor en el menú lateral.',
-                };
+                if (inZone) {
+                    console.log(`✅ Punto dentro de zona ${zone._id}`);
+                    return {
+                        allowed: true,
+                        message: 'Ubicación válida para esta tienda.',
+                        zoneId: zone._id.toString()
+                    };
+                }
             }
 
-            console.log('✅ Punto dentro de zona(s)');
             return {
-                allowed: true,
-                message: 'Ubicación válida para esta tienda.',
+                allowed: false,
+                reason: 'out_of_zone',
+                message: 'El distribuidor dejó de hacer repartos en tu zona.',
             };
 
         } catch (error) {

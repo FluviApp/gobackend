@@ -1,6 +1,7 @@
 import connectMongoDB from '../../libs/mongoose.js';
 import Order from '../../models/Orders.js';
 import Clients from '../../models/Clients.js';
+import Dealers from '../../models/Dealers.js';
 import User from '../../models/User.js';
 import crypto from 'crypto';
 import { sendOrderConfirmationEmail } from '../../utils/sendOrderConfirmationEmail.js';
@@ -83,6 +84,21 @@ export default class ClientOrderService {
             // 🔗 Asociar el ID del usuario al pedido
             data.customer.id = user._id;
 
+            // 🚚 Asignar automáticamente un dealer por zona (si hay zoneId)
+            if (data.zoneId) {
+                const dealer = await Dealers.findOne({ zoneId: data.zoneId }).lean();
+
+                if (dealer) {
+                    console.log('🚚 Dealer asignado automáticamente:', dealer.name);
+                    data.deliveryPerson = {
+                        id: dealer._id.toString(),
+                        name: dealer.name,
+                    };
+                } else {
+                    console.log('⚠️ No se encontró dealer para zoneId:', data.zoneId);
+                }
+            }
+
             // 🧾 Crear el pedido
             const newOrder = new Order(data);
             await newOrder.save();
@@ -100,12 +116,11 @@ export default class ClientOrderService {
 
             // 🔔 Notificar al admin de ese store
             const admin = await User.findOne({ storeId: data.storeId, role: 'admin' });
-            console.log(admin?.admin?.email)
-            if (admin?.admin?.email) {
-                await sendAdminNewOrderNotification({ email: admin.admin.email, order: newOrder });
+            console.log(admin?.admin?.mail)
+            console.log('📧 Notificando al admin:', admin.mail);
+            if (admin?.mail) {
+                await sendAdminNewOrderNotification({ email: admin.mail, order: newOrder });
             }
-
-
 
             // ✅ Retornar también el usuario para autologin
             return {
@@ -124,6 +139,7 @@ export default class ClientOrderService {
             };
         }
     };
+
 
 
 

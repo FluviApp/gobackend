@@ -19,6 +19,7 @@
     "mongoose": "^8.16.1",
     "mongoose-aggregate-paginate-v2": "^1.1.4",
     "mongoose-paginate-v2": "^1.9.1",
+    "node-fetch": "^3.3.2",
     "resend": "^4.6.0"
   },
   "devDependencies": {

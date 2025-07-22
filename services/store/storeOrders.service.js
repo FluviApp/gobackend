@@ -1,6 +1,7 @@
 import connectMongoDB from '../../libs/mongoose.js';
 import Orders from '../../models/Orders.js';
 import { sendOrderStatusUpdateEmail } from '../../utils/sendOrderStatusUpdateEmail.js';
+import { sendPushNotification } from '../../utils/sendPushNotification.js';
 
 export default class StoreOrdersService {
     constructor() {
@@ -123,10 +124,27 @@ export default class StoreOrdersService {
 
     createOrder = async (data) => {
         try {
-            // Agrega deliveryDate si no está explícitamente o si viene vacío
+            // 📅 Calcular fecha de entrega si no viene explícita
             if ((!data.deliveryDate || data.deliveryDate === '') && data.deliverySchedule?.day && data.deliverySchedule?.hour) {
                 const deliveryDate = this.getNextWeekdayDate(data.deliverySchedule.day, data.deliverySchedule.hour);
                 data.deliveryDate = deliveryDate;
+            }
+
+            // 👤 Si tiene un cliente asignado, completar sus datos desde DB
+            if (data.customer?.id) {
+                const user = await User.findById(data.customer.id).lean();
+                if (user) {
+                    data.customer = {
+                        id: user._id,
+                        name: user.name,
+                        email: user.email,
+                        phone: user.phone,
+                        address: user.address,
+                        lat: user.lat,
+                        lon: user.lon,
+                        notificationToken: user.token || '', // ✅
+                    };
+                }
             }
 
             const newOrder = new Orders(data);
@@ -145,6 +163,7 @@ export default class StoreOrdersService {
             };
         }
     };
+
 
 
     updateOrder = async (id, data) => {
@@ -167,11 +186,12 @@ export default class StoreOrdersService {
             // 2️⃣ Actualizar el pedido
             const updated = await Orders.findByIdAndUpdate(id, { $set: data }, { new: true });
 
-            // 3️⃣ Si cambió el estado, enviar correo
+            // 3️⃣ Si cambió el estado, enviar correo y notificación push
             if (newStatus && newStatus !== previousStatus) {
-                const { name, email } = updated.customer || {};
-                console.log('👤 Cliente actualizado:', { name, email });
+                const { name, email, notificationToken } = updated.customer || {};
+                console.log('👤 Cliente actualizado:', { name, email, notificationToken });
 
+                // Enviar correo
                 if (email) {
                     try {
                         console.log('📨 Enviando correo de estado actualizado...');
@@ -182,6 +202,33 @@ export default class StoreOrdersService {
                     }
                 } else {
                     console.warn('⚠️ No se encontró email del cliente');
+                }
+
+                // Enviar notificación push
+                if (notificationToken) {
+                    try {
+                        console.log('📲 Enviando notificación push...');
+                        const response = await fetch('https://exp.host/--/api/v2/push/send', {
+                            method: 'POST',
+                            headers: {
+                                'Accept': 'application/json',
+                                'Accept-Encoding': 'gzip, deflate',
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                to: notificationToken,
+                                sound: 'default',
+                                title: '📦 Estado actualizado',
+                                body: `Tu pedido está ahora: ${newStatus.replace('_', ' ')}`,
+                            }),
+                        });
+                        const result = await response.json();
+                        console.log('✅ Notificación enviada:', result);
+                    } catch (e) {
+                        console.error('❌ Error al enviar notificación push:', e);
+                    }
+                } else {
+                    console.warn('⚠️ No se encontró token de notificación del cliente');
                 }
             }
 
@@ -198,6 +245,7 @@ export default class StoreOrdersService {
             };
         }
     };
+
 
 
 

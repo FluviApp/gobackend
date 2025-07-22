@@ -1,6 +1,7 @@
 import connectMongoDB from '../../libs/mongoose.js';
 import Order from '../../models/Orders.js';
 import Clients from '../../models/Clients.js';
+import Zones from '../../models/Zones.js';
 import Dealers from '../../models/Dealers.js';
 import User from '../../models/User.js';
 import crypto from 'crypto';
@@ -81,21 +82,36 @@ export default class ClientOrderService {
                 storeId: data.storeId,
             });
 
-            // 🔗 Asociar el ID del usuario al pedido
-            data.customer.id = user._id;
+            // 🔗 Copiar todos los datos del usuario al pedido
+            data.customer = {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                phone: user.phone,
+                address: user.address,
+                lat: user.lat,
+                lon: user.lon,
+                notificationToken: user.token, // ✅ ESTA LÍNEA ES CRUCIAL
+            };
 
             // 🚚 Asignar automáticamente un dealer por zona (si hay zoneId)
             if (data.zoneId) {
-                const dealer = await Dealers.findOne({ zoneId: data.zoneId }).lean();
+                const zone = await Zones.findById(data.zoneId).lean();
 
-                if (dealer) {
-                    console.log('🚚 Dealer asignado automáticamente:', dealer.name);
-                    data.deliveryPerson = {
-                        id: dealer._id.toString(),
-                        name: dealer.name,
-                    };
+                if (zone?.dealerId) {
+                    const dealer = await Dealers.findById(zone.dealerId).lean();
+
+                    if (dealer) {
+                        console.log('🚚 Dealer asignado automáticamente:', dealer.name);
+                        data.deliveryPerson = {
+                            id: dealer._id.toString(),
+                            name: dealer.name,
+                        };
+                    } else {
+                        console.log('⚠️ No se encontró dealer con ese dealerId:', zone.dealerId);
+                    }
                 } else {
-                    console.log('⚠️ No se encontró dealer para zoneId:', data.zoneId);
+                    console.log('⚠️ La zona no tiene dealer asignado');
                 }
             }
 
@@ -116,7 +132,7 @@ export default class ClientOrderService {
 
             // 🔔 Notificar al admin de ese store
             const admin = await User.findOne({ storeId: data.storeId, role: 'admin' });
-            console.log(admin?.admin?.mail)
+            console.log(admin?.admin?.mail);
             console.log('📧 Notificando al admin:', admin.mail);
             if (admin?.mail) {
                 await sendAdminNewOrderNotification({ email: admin.mail, order: newOrder });
@@ -139,6 +155,7 @@ export default class ClientOrderService {
             };
         }
     };
+
 
 
 

@@ -59,8 +59,10 @@ export default class StoreZonesService {
 
             const zoneData = {
                 ...body,
+                dealerId: body.dealerId || '',
                 schedule: body.schedule || generateDefaultSchedule(),
             };
+
 
             const newZone = new Zones(zoneData);
             const saved = await newZone.save();
@@ -95,8 +97,10 @@ export default class StoreZonesService {
                         polygon: cleanPolygon,
                         deliveryCost: parseFloat(data.deliveryCost),
                         storeId: data.storeId,
-                        schedule: data.schedule || {}, // ✅ Agregado para permitir actualización del horario
+                        dealerId: data.dealerId || '',
+                        schedule: data.schedule || {},
                     }
+
                 },
                 { new: true }
             );

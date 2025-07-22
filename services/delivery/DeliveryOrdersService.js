@@ -1,5 +1,6 @@
 import Order from '../../models/Orders.js';
-import { sendOrderStatusUpdateEmail } from '../../utils/sendOrderStatusUpdateEmail.js'; // 👈 importar
+import { sendOrderStatusUpdateEmail } from '../../utils/sendOrderStatusUpdateEmail.js';
+import { sendPushNotification } from '../../utils/sendPushNotification.js';
 
 export default class DeliveryOrdersService {
     getOrdersByDeliveryId = async (deliveryId) => {
@@ -88,11 +89,28 @@ export default class DeliveryOrdersService {
                 runValidators: true,
             });
 
-            // 📧 Enviar correo si el estado cambió
+            // 📧 Enviar correo y 📲 notificación si el estado cambió
             if (newStatus && newStatus !== previousStatus) {
-                const { name, email } = updated.customer || {};
+                const { name, email, notificationToken } = updated.customer || {};
+
+                // 📧 Correo
                 if (email) {
-                    await sendOrderStatusUpdateEmail({ name, email, status: newStatus });
+                    try {
+                        await sendOrderStatusUpdateEmail({ name, email, status: newStatus });
+                        console.log('✅ Correo de actualización enviado');
+                    } catch (e) {
+                        console.error('❌ Error al enviar correo:', e);
+                    }
+                }
+
+                // 📲 Notificación push
+                if (notificationToken) {
+                    try {
+                        await sendPushNotification({ token: notificationToken, status: newStatus });
+                        console.log('📲 Notificación push enviada');
+                    } catch (e) {
+                        console.error('❌ Error al enviar notificación push:', e);
+                    }
                 }
             }
 
@@ -101,5 +119,5 @@ export default class DeliveryOrdersService {
             console.error('❌ Error en updateOrderById:', error);
             throw error;
         }
-    }
+    };
 }

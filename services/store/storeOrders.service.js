@@ -37,37 +37,12 @@ export default class StoreOrdersService {
                     $lte: end,
                 };
             } else {
-                const todayStart = new Date();
-                todayStart.setHours(0, 0, 0, 0);
-
                 const todayEnd = new Date();
                 todayEnd.setHours(23, 59, 59, 999);
 
-                const yesterday = new Date(todayStart);
-                yesterday.setDate(todayStart.getDate() - 1);
-
-                const tomorrow = new Date(todayStart);
-                tomorrow.setDate(todayStart.getDate() + 1);
-
-                query.$or = [
-                    // Pedidos del día de hoy (todos los estados)
-                    {
-                        deliveryDate: {
-                            $gte: todayStart,
-                            $lte: todayEnd,
-                        },
-                    },
-                    // Pedidos de ayer (solo si no están finalizados)
-                    {
-                        deliveryDate: yesterday,
-                        status: { $nin: estadosFinalizados },
-                    },
-                    // Pedidos de mañana (solo si no están finalizados)
-                    {
-                        deliveryDate: tomorrow,
-                        status: { $nin: estadosFinalizados },
-                    },
-                ];
+                // Solo pedidos no concluidos hasta el día de hoy inclusive
+                query.deliveryDate = { $lte: todayEnd };
+                query.status = { $nin: estadosFinalizados };
             }
 
             const options = {
@@ -91,6 +66,7 @@ export default class StoreOrdersService {
             };
         }
     };
+
 
 
 

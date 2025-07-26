@@ -8,5 +8,6 @@ router.get('/orders', controller.getAllOrders);
 router.post('/orders', controller.createOrder);
 router.put('/orders/:id', controller.updateOrder);
 router.delete('/orders/:id', controller.deleteOrder);
+router.get('/orders/pending', controller.getPendingOrders);
 
 export default router;

@@ -93,6 +93,10 @@ const orderSchema = new Schema(
             enum: ['efectivo', 'transferencia', 'webpay', 'mercadopago', 'tarjeta', 'otro'], // ✅ solo 'tarjeta'
             required: true,
         },
+        transferPay: {
+            type: Boolean,
+            default: true,
+        },
 
 
         status: {

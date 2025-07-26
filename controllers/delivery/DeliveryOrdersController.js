@@ -3,6 +3,40 @@ import DeliveryOrdersService from '../../services/delivery/DeliveryOrdersService
 const service = new DeliveryOrdersService()
 
 export default class DeliveryOrdersController {
+    getOrdersByStoreGroup = async (req, res) => {
+        try {
+            const orders = await service.getOrdersByStoreGroup();
+            return res.status(200).json({
+                success: true,
+                data: orders,
+            });
+        } catch (error) {
+            console.error('❌ Error en getOrdersByStoreGroup:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Error al obtener pedidos por grupo de tiendas',
+            });
+        }
+    };
+    getClosedOrdersByStoreGroup = async (req, res) => {
+        try {
+            const orders = await service.getClosedOrdersByStoreGroup();
+            return res.status(200).json({
+                success: true,
+                data: orders,
+            });
+        } catch (error) {
+            console.error('❌ Error en getClosedOrdersByStoreGroup:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Error al obtener pedidos cerrados por grupo de tiendas',
+            });
+        }
+    };
+
+
+
+
     getOrdersByDeliveryId = async (req, res) => {
         try {
             const { id } = req.params

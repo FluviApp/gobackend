@@ -1,5 +1,6 @@
 import connectMongoDB from '../../libs/mongoose.js';
 import Orders from '../../models/Orders.js';
+import User from '../../models/User.js';
 import { sendOrderStatusUpdateEmail } from '../../utils/sendOrderStatusUpdateEmail.js';
 import { sendPushNotification } from '../../utils/sendPushNotification.js';
 
@@ -8,41 +9,39 @@ export default class StoreOrdersService {
         connectMongoDB();
     }
 
-    getAllOrders = async ({ storeId, page = 1, limit = 50, startDate, endDate }) => {
+    getAllOrders = async ({ storeId, page = 1, limit = 50, startDate, endDate, status, transferPay }) => {
         console.log('🧪 startDate:', startDate);
         console.log('🧪 endDate:', endDate);
         console.log('🧪 storeId:', storeId);
+        console.log('🧪 status:', status);
+        console.log('🧪 transferPay:', transferPay);
+
         try {
             if (!storeId) {
                 return { success: false, message: 'storeId es requerido' };
             }
 
-            const query = {
-                storeId,
-                deliveryType: 'domicilio',
-            };
+            const query = { storeId };
 
-            const estadosFinalizados = ['entregado', 'devuelto', 'cancelado'];
-
+            // Filtro por rango de fechas (deliveryDate)
             if (startDate && endDate) {
-                // Asegura que el rango incluya todo el día
                 const start = new Date(startDate);
                 start.setHours(0, 0, 0, 0);
 
                 const end = new Date(endDate);
                 end.setHours(23, 59, 59, 999);
 
-                query.deliveryDate = {
-                    $gte: start,
-                    $lte: end,
-                };
-            } else {
-                const todayEnd = new Date();
-                todayEnd.setHours(23, 59, 59, 999);
+                query.deliveryDate = { $gte: start, $lte: end };
+            }
 
-                // Solo pedidos no concluidos hasta el día de hoy inclusive
-                query.deliveryDate = { $lte: todayEnd };
-                query.status = { $nin: estadosFinalizados };
+            // Filtro por estado (si viene)
+            if (status) {
+                query.status = status;
+            }
+
+            // Filtro por transferPay (si viene explícitamente, como string)
+            if (typeof transferPay !== 'undefined') {
+                query.transferPay = transferPay === 'true';
             }
 
             const options = {
@@ -66,6 +65,8 @@ export default class StoreOrdersService {
             };
         }
     };
+
+
 
 
 
@@ -142,6 +143,109 @@ export default class StoreOrdersService {
 
 
 
+    // Función para actualizar el pedido
+    // updateOrder = async (id, data) => {
+    //     try {
+    //         console.log('🧪 Ejecutando updateOrder con ID:', id);
+    //         console.log('🧪 Datos recibidos para actualizar:', data);
+
+    //         // 1️⃣ Obtener el pedido actual
+    //         const existingOrder = await Orders.findById(id);
+    //         if (!existingOrder) {
+    //             console.warn('⚠️ Pedido no encontrado');
+    //             return { success: false, message: 'Pedido no encontrado' };
+    //         }
+
+    //         const previousStatus = existingOrder.status;
+    //         const newStatus = data.status;
+    //         const previousPaymentMethod = existingOrder.paymentMethod;
+    //         const newPaymentMethod = data.paymentMethod;
+
+    //         console.log(`🔄 Estado anterior: ${previousStatus} → Nuevo: ${newStatus}`);
+    //         console.log(`💳 Método de pago anterior: ${previousPaymentMethod} → Nuevo: ${newPaymentMethod}`);
+
+    //         // 2️⃣ Lógica para actualizar transferPay:
+    //         // 2️⃣ Lógica para actualizar transferPay:
+    //         console.log('🔍 Evaluando el campo transferPay...');
+
+    //         // Si no se pasa un `paymentMethod` en la actualización, se mantiene el valor actual.
+    //         const finalPaymentMethod = data.paymentMethod || existingOrder.paymentMethod;
+
+    //         if (newStatus === 'entregado' && finalPaymentMethod === 'transferencia') {
+    //             console.log('✅ Estado "entregado" y método de pago "transferencia", se establece transferPay en false');
+    //             data.transferPay = false;
+    //         } else {
+    //             console.log('❌ Estado no es "entregado" o método de pago no es "transferencia", se establece transferPay en true');
+    //             data.transferPay = true;
+    //         }
+
+    //         // Log de los datos después de actualizar transferPay
+    //         console.log('📝 Datos después de la actualización de transferPay:', data);
+
+
+    //         // 3️⃣ Actualizar el pedido
+    //         const updated = await Orders.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true });
+
+    //         // 4️⃣ Si cambió el estado, enviar correo y notificación push
+    //         if (newStatus && newStatus !== previousStatus) {
+    //             const { name, email, notificationToken } = updated.customer || {};
+    //             console.log('👤 Cliente actualizado:', { name, email, notificationToken });
+
+    //             // Enviar correo
+    //             if (email) {
+    //                 try {
+    //                     console.log('📨 Enviando correo de estado actualizado...');
+    //                     await sendOrderStatusUpdateEmail({ name, email, status: newStatus });
+    //                     console.log('✅ Correo enviado con éxito');
+    //                 } catch (e) {
+    //                     console.error('❌ Error al enviar el correo:', e);
+    //                 }
+    //             } else {
+    //                 console.warn('⚠️ No se encontró email del cliente');
+    //             }
+
+    //             // Enviar notificación push
+    //             if (notificationToken) {
+    //                 try {
+    //                     console.log('📲 Enviando notificación push...');
+    //                     const response = await fetch('https://exp.host/--/api/v2/push/send', {
+    //                         method: 'POST',
+    //                         headers: {
+    //                             'Accept': 'application/json',
+    //                             'Accept-Encoding': 'gzip, deflate',
+    //                             'Content-Type': 'application/json',
+    //                         },
+    //                         body: JSON.stringify({
+    //                             to: notificationToken,
+    //                             sound: 'default',
+    //                             title: '📦 Estado actualizado',
+    //                             body: `Tu pedido está ahora: ${newStatus.replace('_', ' ')}`,
+    //                         }),
+    //                     });
+    //                     const result = await response.json();
+    //                     console.log('✅ Notificación enviada:', result);
+    //                 } catch (e) {
+    //                     console.error('❌ Error al enviar notificación push:', e);
+    //                 }
+    //             } else {
+    //                 console.warn('⚠️ No se encontró token de notificación del cliente');
+    //             }
+    //         }
+
+    //         return {
+    //             success: true,
+    //             message: 'Pedido actualizado correctamente',
+    //             data: updated
+    //         };
+    //     } catch (error) {
+    //         console.error('❌ Error al actualizar pedido:', error);
+    //         return {
+    //             success: false,
+    //             message: 'Error al actualizar pedido'
+    //         };
+    //     }
+    // };
+
     updateOrder = async (id, data) => {
         try {
             console.log('🧪 Ejecutando updateOrder con ID:', id);
@@ -156,13 +260,41 @@ export default class StoreOrdersService {
 
             const previousStatus = existingOrder.status;
             const newStatus = data.status;
+            const previousPaymentMethod = existingOrder.paymentMethod;
+            const newPaymentMethod = data.paymentMethod;
 
             console.log(`🔄 Estado anterior: ${previousStatus} → Nuevo: ${newStatus}`);
+            console.log(`💳 Método de pago anterior: ${previousPaymentMethod} → Nuevo: ${newPaymentMethod}`);
 
-            // 2️⃣ Actualizar el pedido
-            const updated = await Orders.findByIdAndUpdate(id, { $set: data }, { new: true });
+            // 2️⃣ Lógica para actualizar transferPay:
+            // 2️⃣ Lógica para actualizar transferPay:
+            // 2️⃣ Lógica para actualizar transferPay
+            console.log('🔍 Evaluando el campo transferPay...');
 
-            // 3️⃣ Si cambió el estado, enviar correo y notificación push
+            if (typeof data.transferPay !== 'undefined') {
+                console.log('🔧 transferPay recibido explícitamente, se mantiene:', data.transferPay);
+                // No hacemos nada, se respeta el valor recibido
+            } else {
+                // Si no vino transferPay, aplicar lógica automática como fallback
+                const finalPaymentMethod = data.paymentMethod || existingOrder.paymentMethod;
+                if (newStatus === 'entregado' && finalPaymentMethod === 'transferencia') {
+                    console.log('✅ Estado "entregado" y método de pago "transferencia", se establece transferPay en false');
+                    data.transferPay = false;
+                } else {
+                    console.log('❌ Estado no es "entregado" o método de pago no es "transferencia", se establece transferPay en true');
+                    data.transferPay = true;
+                }
+            }
+
+
+            // Log de los datos después de actualizar transferPay
+            console.log('📝 Datos después de la actualización de transferPay:', data);
+
+
+            // 3️⃣ Actualizar el pedido
+            const updated = await Orders.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true });
+
+            // 4️⃣ Si cambió el estado, enviar correo y notificación push
             if (newStatus && newStatus !== previousStatus) {
                 const { name, email, notificationToken } = updated.customer || {};
                 console.log('👤 Cliente actualizado:', { name, email, notificationToken });
@@ -225,6 +357,12 @@ export default class StoreOrdersService {
 
 
 
+
+
+
+
+
+
     deleteOrder = async (id) => {
         try {
             const deleted = await Orders.findByIdAndDelete(id);
@@ -243,4 +381,41 @@ export default class StoreOrdersService {
             };
         }
     };
+
+    // Service (Backend) - Verificar que los datos se obtienen correctamente
+    getPendingOrders = async ({ storeId }) => {
+        const estadosExcluidos = ['entregado']; // Solo excluimos 'entregado'
+
+        try {
+            const today = new Date();
+            today.setHours(23, 59, 59, 999); // Final de día
+
+            const query = {
+                storeId,
+                deliveryType: 'domicilio',
+                deliveryDate: { $lte: today }, // Solo pedidos hasta hoy
+                status: { $nin: estadosExcluidos }, // Excluir 'entregado'
+            };
+
+            console.log("🔍 Consulta que se va a ejecutar:", query);
+
+            const result = await Orders.find(query).sort({ deliveryDate: 1 });
+
+            console.log('🏷️ Resultados obtenidos:', result);
+
+            return {
+                success: true,
+                message: 'Pedidos hasta hoy obtenidos correctamente',
+                data: result, // Devuelve los resultados como un array de pedidos
+            };
+        } catch (error) {
+            console.error('❌ Error al obtener pedidos hasta hoy:', error);
+            return {
+                success: false,
+                message: 'Error al obtener pedidos hasta hoy',
+            };
+        }
+    };
+
+
 }

@@ -4,6 +4,9 @@ import DeliveryOrdersController from '../../controllers/delivery/DeliveryOrdersC
 const router = express.Router()
 const controller = new DeliveryOrdersController()
 
+router.get('/orders/stores', controller.getOrdersByStoreGroup);
+router.get('/orders/close', controller.getClosedOrdersByStoreGroup);
+
 // Todos los pedidos asignados
 router.get('/orders/:id', controller.getOrdersByDeliveryId)
 // Solo pedidos activos (NO finalizados, de hoy o anteriores)

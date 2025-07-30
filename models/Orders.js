@@ -43,7 +43,7 @@ const deliveryScheduleSchema = new Schema(
 const customerSchema = new Schema(
     {
         id: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-        name: { type: String, required: true },
+        name: { type: String },
         email: { type: String },
         phone: { type: String },
         address: { type: String },

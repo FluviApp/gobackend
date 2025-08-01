@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import cloudinary from '../../utils/cloudinary.js';
 import Banners from '../../models/Banners.js';
 import connectMongoDB from '../../libs/mongoose.js';
 
@@ -29,25 +30,20 @@ export default class StoreBannersService {
 
     async createBanner(data) {
         try {
-            const uploadDir = path.join(process.cwd(), 'public/uploads/banners');
-            fs.mkdirSync(uploadDir, { recursive: true });
+            let imageUrl = '';
 
-            const file = data.image;
-
-            const extension = path.extname(file.name); // Ej: ".jpg"
-            if (!extension) {
-                throw new Error('El archivo no tiene extensión válida');
+            if (data.image) {
+                const result = await cloudinary.uploader.upload(
+                    data.image.tempFilePath || data.image.path,
+                    { folder: 'banners' }
+                );
+                imageUrl = result.secure_url;
+                console.log('📤 Imagen subida a Cloudinary:', imageUrl);
             }
-
-            const randomSuffix = Math.random().toString(36).substring(2, 8);
-            const fileName = `${Date.now()}_${randomSuffix}${extension}`;
-            const fullPath = path.join(uploadDir, fileName);
-
-            await file.mv(fullPath);
 
             const banner = await Banners.create({
                 name: data.name.trim(),
-                image: `/uploads/banners/${fileName}`,
+                image: imageUrl,
                 link: data.link?.trim() || '',
                 storeId: data.storeId,
             });
@@ -76,27 +72,24 @@ export default class StoreBannersService {
             let updatedImage = banner.image;
 
             if (data.image) {
-                const uploadDir = path.join(process.cwd(), 'public/uploads/banners');
-                fs.mkdirSync(uploadDir, { recursive: true });
+                // 1. Subir nueva imagen
+                const uploadResult = await cloudinary.uploader.upload(
+                    data.image.tempFilePath || data.image.path,
+                    { folder: 'banners' }
+                );
+                updatedImage = uploadResult.secure_url;
 
-                const file = data.image;
-                const extension = path.extname(file.name);
-                if (!extension) {
-                    throw new Error('El archivo no tiene extensión válida');
+                // 2. Eliminar anterior
+                if (banner.image && banner.image.includes('res.cloudinary.com')) {
+                    const publicId = this.getPublicIdFromUrl(banner.image);
+                    if (publicId) {
+                        await cloudinary.uploader.destroy(publicId);
+                        console.log('🗑 Imagen antigua eliminada de Cloudinary:', publicId);
+                    }
                 }
-
-                const randomSuffix = Math.random().toString(36).substring(2, 8);
-                const fileName = `${Date.now()}_${randomSuffix}${extension}`;
-                const fullPath = path.join(uploadDir, fileName);
-
-                await file.mv(fullPath);
-                updatedImage = `/uploads/banners/${fileName}`;
-
-                // 🔥 Eliminar imagen antigua
-                const oldPath = path.join(process.cwd(), 'public', banner.image);
-                if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
             }
 
+            // 3. Actualizar campos
             const updated = await Banners.findByIdAndUpdate(
                 id,
                 {
@@ -127,8 +120,14 @@ export default class StoreBannersService {
             const banner = await Banners.findByIdAndDelete(id);
             if (!banner) return { success: false, message: 'Banner no encontrado' };
 
-            const imagePath = path.join(process.cwd(), 'public', banner.image);
-            if (fs.existsSync(imagePath)) fs.unlinkSync(imagePath);
+            // 🔥 Eliminar imagen de Cloudinary
+            if (banner.image && banner.image.includes('res.cloudinary.com')) {
+                const publicId = this.getPublicIdFromUrl(banner.image);
+                if (publicId) {
+                    await cloudinary.uploader.destroy(publicId);
+                    console.log('🗑 Imagen eliminada de Cloudinary:', publicId);
+                }
+            }
 
             return {
                 success: true,
@@ -142,4 +141,16 @@ export default class StoreBannersService {
             };
         }
     }
+
+    getPublicIdFromUrl = (url) => {
+        try {
+            const parts = url.split('/');
+            const fileWithExtension = parts[parts.length - 1];
+            const [publicId] = fileWithExtension.split('.');
+            const folder = parts[parts.length - 2];
+            return `${folder}/${publicId}`;
+        } catch {
+            return null;
+        }
+    };
 }

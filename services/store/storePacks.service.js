@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import cloudinary from '../../utils/cloudinary.js';
 import Packs from '../../models/Packs.js';
 import connectMongoDB from '../../libs/mongoose.js';
 
@@ -29,23 +30,21 @@ export default class StorePacksService {
 
     async createPack(data, files) {
         try {
-            // 📁 Crear carpeta si no existe
-            const uploadDir = path.join(process.cwd(), 'public/uploads/packs');
-            fs.mkdirSync(uploadDir, { recursive: true });
+            // 📤 Subida a Cloudinary
+            let packImageUrl = '';
+            if (files?.image) {
+                const result = await cloudinary.uploader.upload(
+                    files.image.tempFilePath || files.image.path,
+                    { folder: 'packs' }
+                );
+                packImageUrl = result.secure_url;
+                console.log('📷 Imagen subida a Cloudinary:', packImageUrl);
+            }
 
-            // 🖼️ Imagen principal del pack
-            const file = files.image;
-            const extension = path.extname(file.name);
-            if (!extension) throw new Error('La imagen no tiene extensión válida');
-            const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}${extension}`;
-            const fullPath = path.join(uploadDir, fileName);
-            await file.mv(fullPath);
-            const packImageUrl = `/uploads/packs/${fileName}`;
-
-            // 🧠 Parsear productos (viene como JSON string en req.body.products)
+            // 🧠 Parsear productos
             const parsedProducts = JSON.parse(data.products || '[]');
 
-            // ✅ Crear el pack
+            // ✅ Crear pack
             const newPack = await Packs.create({
                 storeId: data.storeId,
                 name: data.name.trim(),
@@ -56,7 +55,7 @@ export default class StorePacksService {
                     name: p.name,
                     quantity: p.quantity,
                     price: p.price,
-                    productImage: p.productImage, // Ya viene con URL desde el cliente
+                    productImage: p.productImage, // se asume que el frontend envía una URL válida
                 })),
             });
 
@@ -76,6 +75,7 @@ export default class StorePacksService {
 
 
 
+
     async updatePack(id, data, files) {
         try {
             const pack = await Packs.findById(id);
@@ -83,24 +83,22 @@ export default class StorePacksService {
 
             let updatedImage = pack.image;
 
-            // 📤 Si se sube una nueva imagen
+            // 📤 Subir nueva imagen si viene
             if (files?.image) {
-                const uploadDir = path.join(process.cwd(), 'public/uploads/packs');
-                fs.mkdirSync(uploadDir, { recursive: true });
+                const result = await cloudinary.uploader.upload(
+                    files.image.tempFilePath || files.image.path,
+                    { folder: 'packs' }
+                );
+                updatedImage = result.secure_url;
 
-                const file = files.image;
-                const extension = path.extname(file.name);
-                if (!extension) throw new Error('La imagen no tiene extensión válida');
-
-                const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}${extension}`;
-                const fullPath = path.join(uploadDir, fileName);
-                await file.mv(fullPath);
-
-                updatedImage = `/uploads/packs/${fileName}`;
-
-                // 🧹 Eliminar la imagen anterior
-                const oldPath = path.join(process.cwd(), 'public', pack.image);
-                if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+                // 🔥 Eliminar imagen anterior de Cloudinary si era de ahí
+                if (pack.image && pack.image.includes('res.cloudinary.com')) {
+                    const publicId = this.getPublicIdFromUrl(pack.image);
+                    if (publicId) {
+                        await cloudinary.uploader.destroy(publicId);
+                        console.log('🗑 Imagen anterior eliminada de Cloudinary:', publicId);
+                    }
+                }
             }
 
             // 🧠 Parsear productos
@@ -143,6 +141,15 @@ export default class StorePacksService {
             const deleted = await Packs.findByIdAndDelete(id);
             if (!deleted) return { success: false, message: 'Pack no encontrado' };
 
+            // 🗑 Eliminar imagen de Cloudinary si corresponde
+            if (deleted.image && deleted.image.includes('res.cloudinary.com')) {
+                const publicId = this.getPublicIdFromUrl(deleted.image);
+                if (publicId) {
+                    await cloudinary.uploader.destroy(publicId);
+                    console.log('🗑 Imagen del pack eliminada de Cloudinary:', publicId);
+                }
+            }
+
             return {
                 success: true,
                 message: 'Pack eliminado correctamente',
@@ -155,4 +162,16 @@ export default class StorePacksService {
             };
         }
     }
+
+    getPublicIdFromUrl = (url) => {
+        try {
+            const parts = url.split('/');
+            const fileWithExtension = parts.pop();
+            const [publicId] = fileWithExtension.split('.');
+            const folder = parts.pop();
+            return `${folder}/${publicId}`;
+        } catch {
+            return null;
+        }
+    };
 }

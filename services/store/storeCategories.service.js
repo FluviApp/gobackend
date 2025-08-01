@@ -1,5 +1,6 @@
 import connectMongoDB from '../../libs/mongoose.js';
 import Category from '../../models/Category.js';
+import cloudinary from '../../utils/cloudinary.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -34,24 +35,18 @@ export default class StoreCategoriesService {
     };
 
     createCategory = async (data) => {
+        console.log('CLOUDINARY_API_KEY:', process.env.CLOUDINARY_API_KEY);
+        console.log('crear cat 1')
         try {
             let imagePath = '';
 
+            // ✅ Subida a Cloudinary
             if (data.image) {
-                const uploadDir = path.join(process.cwd(), 'public/uploads/categories');
-                const fileName = `${Date.now()}_${data.image.name}`;
-                const fullPath = path.join(uploadDir, fileName);
-
-                // Asegurarse que la carpeta existe
-                fs.mkdirSync(uploadDir, { recursive: true });
-
-                // Mover el archivo
-                await data.image.mv(fullPath);
-
-                // Este path sí corresponde a la carpeta estática
-                imagePath = `/uploads/categories/${fileName}`;
-                console.log('✔ Imagen guardada en:', fullPath);
-                console.log('✔ Ruta pública:', imagePath);
+                const result = await cloudinary.uploader.upload(data.image.tempFilePath || data.image.path, {
+                    folder: 'categories', // nombre de carpeta en Cloudinary
+                });
+                imagePath = result.secure_url; // URL segura para usar en el frontend
+                console.log('📷 Imagen subida a Cloudinary:', imagePath);
             }
 
             const newCategory = new Category({
@@ -76,6 +71,7 @@ export default class StoreCategoriesService {
         }
     };
 
+
     updateCategory = async (id, categoryData) => {
         try {
             const existing = await Category.findById(id);
@@ -86,35 +82,37 @@ export default class StoreCategoriesService {
                 };
             }
 
-            let imagePath = existing.image; // por defecto mantener imagen actual
+            let imagePath = existing.image; // conservar la actual por defecto
 
-            // ✅ Si hay una nueva imagen, la subimos y borramos la anterior
+            // ✅ Si se envía una nueva imagen
             if (categoryData.image) {
-                const uploadDir = path.join(process.cwd(), 'public/uploads/categories');
-                fs.mkdirSync(uploadDir, { recursive: true });
+                // 1. Subir nueva a Cloudinary
+                const uploadResult = await cloudinary.uploader.upload(
+                    categoryData.image.tempFilePath || categoryData.image.path,
+                    { folder: 'categories' }
+                );
+                imagePath = uploadResult.secure_url;
 
-                const newFileName = `${Date.now()}_${categoryData.image.name}`;
-                const newFullPath = path.join(uploadDir, newFileName);
-
-                await categoryData.image.mv(newFullPath);
-                imagePath = `/uploads/categories/${newFileName}`;
-
-                // 🔥 Borrar imagen anterior si existe
-                if (existing.image && existing.image.startsWith('/uploads')) {
-                    const oldPath = path.join(process.cwd(), 'public', existing.image);
-                    if (fs.existsSync(oldPath)) {
-                        fs.unlinkSync(oldPath);
-                        console.log('🗑 Imagen anterior eliminada:', oldPath);
+                // 2. Borrar imagen anterior de Cloudinary si era de allí
+                if (existing.image && existing.image.includes('res.cloudinary.com')) {
+                    const publicId = this.getPublicIdFromUrl(existing.image);
+                    if (publicId) {
+                        await cloudinary.uploader.destroy(publicId);
+                        console.log('🗑 Imagen anterior eliminada de Cloudinary:', publicId);
                     }
                 }
             }
 
-            // Actualizamos los campos
-            const updated = await Category.findByIdAndUpdate(id, {
-                name: categoryData.name,
-                storeId: categoryData.storeId,
-                image: imagePath,
-            }, { new: true });
+            // 3. Actualizar en MongoDB
+            const updated = await Category.findByIdAndUpdate(
+                id,
+                {
+                    name: categoryData.name,
+                    storeId: categoryData.storeId,
+                    image: imagePath,
+                },
+                { new: true }
+            );
 
             return {
                 success: true,
@@ -131,6 +129,7 @@ export default class StoreCategoriesService {
     };
 
 
+
     deleteCategory = async (id) => {
         try {
             const deletedCategory = await Category.findByIdAndDelete(id);
@@ -142,12 +141,15 @@ export default class StoreCategoriesService {
                 };
             }
 
-            // 🔥 Eliminar imagen si existe
-            if (deletedCategory.image && deletedCategory.image.startsWith('/uploads')) {
-                const imagePath = path.join(process.cwd(), 'public', deletedCategory.image);
-                if (fs.existsSync(imagePath)) {
-                    fs.unlinkSync(imagePath);
-                    console.log('🗑 Imagen de categoría eliminada:', imagePath);
+            // 🔥 Eliminar imagen de Cloudinary si existe
+            if (
+                deletedCategory.image &&
+                deletedCategory.image.includes('res.cloudinary.com')
+            ) {
+                const publicId = this.getPublicIdFromUrl(deletedCategory.image);
+                if (publicId) {
+                    await cloudinary.uploader.destroy(publicId);
+                    console.log('🗑 Imagen de categoría eliminada de Cloudinary:', publicId);
                 }
             }
 
@@ -164,4 +166,15 @@ export default class StoreCategoriesService {
         }
     };
 
+    getPublicIdFromUrl(url) {
+        try {
+            const parts = url.split('/');
+            const fileWithExtension = parts[parts.length - 1];
+            const [publicId] = fileWithExtension.split('.');
+            const folder = parts[parts.length - 2];
+            return `${folder}/${publicId}`;
+        } catch {
+            return null;
+        }
+    }
 }

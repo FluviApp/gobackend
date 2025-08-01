@@ -1,5 +1,6 @@
 import connectMongoDB from '../../libs/mongoose.js';
 import Subcategory from '../../models/Subcategory.js';
+import cloudinary from '../../utils/cloudinary.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -39,23 +40,19 @@ export default class StoreSubcategoriesService {
 
     createSubcategory = async (data) => {
         try {
-            let imagePath = '';
+            let imageUrl = '';
 
             if (data.image) {
-                const uploadDir = path.join(process.cwd(), 'public/uploads/subcategories');
-                const fileName = `${Date.now()}_${data.image.name}`;
-                const fullPath = path.join(uploadDir, fileName);
-
-                fs.mkdirSync(uploadDir, { recursive: true });
-                await data.image.mv(fullPath);
-
-                imagePath = `/uploads/subcategories/${fileName}`;
-                console.log('✔ Imagen subcategoría guardada en:', fullPath);
+                const uploadResult = await cloudinary.uploader.upload(
+                    data.image.tempFilePath || data.image.path,
+                    { folder: 'subcategories' }
+                );
+                imageUrl = uploadResult.secure_url;
             }
 
             const newSubcategory = new Subcategory({
                 name: data.name.trim(),
-                image: imagePath,
+                image: imageUrl,
                 storeId: data.storeId,
                 categoryId: data.categoryId
             });
@@ -76,6 +73,7 @@ export default class StoreSubcategoriesService {
         }
     };
 
+
     updateSubcategory = async (id, data) => {
         try {
             const existing = await Subcategory.findById(id);
@@ -86,24 +84,22 @@ export default class StoreSubcategoriesService {
                 };
             }
 
-            let imagePath = existing.image;
+            let updatedImage = existing.image;
 
             if (data.image) {
-                const uploadDir = path.join(process.cwd(), 'public/uploads/subcategories');
-                fs.mkdirSync(uploadDir, { recursive: true });
+                // 📤 Subir nueva imagen a Cloudinary
+                const uploadResult = await cloudinary.uploader.upload(
+                    data.image.tempFilePath || data.image.path,
+                    { folder: 'subcategories' }
+                );
+                updatedImage = uploadResult.secure_url;
 
-                const fileName = `${Date.now()}_${data.image.name}`;
-                const fullPath = path.join(uploadDir, fileName);
-
-                await data.image.mv(fullPath);
-                imagePath = `/uploads/subcategories/${fileName}`;
-
-                // 🔥 Eliminar imagen anterior
-                if (existing.image && existing.image.startsWith('/uploads')) {
-                    const oldPath = path.join(process.cwd(), 'public', existing.image);
-                    if (fs.existsSync(oldPath)) {
-                        fs.unlinkSync(oldPath);
-                        console.log('🗑 Imagen anterior eliminada:', oldPath);
+                // 🧹 Eliminar imagen anterior de Cloudinary
+                if (existing.image?.includes('cloudinary')) {
+                    const publicId = this.getPublicIdFromUrl(existing.image);
+                    if (publicId) {
+                        await cloudinary.uploader.destroy(publicId);
+                        console.log('🗑 Imagen anterior de Cloudinary eliminada:', publicId);
                     }
                 }
             }
@@ -114,7 +110,7 @@ export default class StoreSubcategoriesService {
                     name: data.name,
                     storeId: data.storeId,
                     categoryId: data.categoryId,
-                    image: imagePath,
+                    image: updatedImage,
                 },
                 { new: true }
             );
@@ -134,6 +130,7 @@ export default class StoreSubcategoriesService {
     };
 
 
+
     deleteSubcategory = async (id) => {
         try {
             const subcategory = await Subcategory.findByIdAndDelete(id);
@@ -145,12 +142,21 @@ export default class StoreSubcategoriesService {
                 };
             }
 
-            // 🧹 Eliminar imagen si existe
-            if (subcategory.image && subcategory.image.startsWith('/uploads')) {
+            // 🧹 Eliminar imagen de Cloudinary si existe
+            if (subcategory.image?.includes('cloudinary')) {
+                const publicId = this.getPublicIdFromUrl(subcategory.image);
+                if (publicId) {
+                    await cloudinary.uploader.destroy(publicId);
+                    console.log('🗑 Imagen eliminada de Cloudinary:', publicId);
+                }
+            }
+
+            // 🧹 En caso de imagen local (ruta /uploads), también se borra
+            if (subcategory.image?.startsWith('/uploads')) {
                 const imagePath = path.join(process.cwd(), 'public', subcategory.image);
                 if (fs.existsSync(imagePath)) {
                     fs.unlinkSync(imagePath);
-                    console.log('🗑 Imagen de subcategoría eliminada:', imagePath);
+                    console.log('🗑 Imagen local eliminada:', imagePath);
                 }
             }
 
@@ -166,4 +172,20 @@ export default class StoreSubcategoriesService {
             };
         }
     };
+
+
+    getPublicIdFromUrl = (url) => {
+        try {
+            const urlObj = new URL(url);
+            const parts = urlObj.pathname.split('/');
+            const fileWithExt = parts.pop();
+            const [publicId] = fileWithExt.split('.');
+            const folder = parts.pop();
+            return `${folder}/${publicId}`;
+        } catch (err) {
+            console.warn('⚠️ Error al extraer public_id de URL:', err.message);
+            return null;
+        }
+    };
+
 }

@@ -105,7 +105,7 @@ export default class ClientAuthService {
             const token = crypto.randomBytes(32).toString('hex');
             const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
 
-            // 🧼 Limpia tokens anteriores (opcional pero recomendable)
+            // 🧼 Limpia tokens anteriores
             await PasswordResetToken.deleteMany({ userId: client._id });
 
             // 💾 Guarda nuevo token
@@ -115,8 +115,8 @@ export default class ClientAuthService {
                 expiresAt
             });
 
-            // 📩 Enviar correo
-            const resetLink = `https://fluvi-reset.onrender.com/reset-password?token=${token}`;
+            // 📩 Enviar correo con el nuevo link apuntando al frontend en Render
+            const resetLink = `https://resetpass.onrender.com/reset-password?token=${token}`;
             await sendResetPasswordEmail(client.email, client.name || 'Usuario', resetLink);
 
             console.log('📩 Enlace de recuperación enviado a:', client.email);
@@ -126,13 +126,14 @@ export default class ClientAuthService {
                 message: 'Se ha enviado un enlace de recuperación a tu correo',
             };
         } catch (error) {
-            console.error('❌ Error en createPasswordResetToken:', error);
+            console.error('❌ Error en recoverPassword:', error);
             return {
                 success: false,
                 message: 'Error al generar el enlace de recuperación',
             };
         }
     };
+
     resetPassword = async ({ token, newPassword }) => {
         try {
             if (!token || !newPassword) {

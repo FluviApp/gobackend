@@ -1,6 +1,9 @@
+import crypto from 'crypto';
 import connectMongoDB from '../../libs/mongoose.js';
 import Clients from '../../models/Clients.js';
+import PasswordResetToken from '../../models/PasswordResetToken.js';
 import { sendPasswordRecoveryEmail } from '../../utils/sendRecoveryEmail.js';
+import { sendResetPasswordEmail } from '../../utils/sendResetPasswordEmail.js';
 import { sendWelcomeEmail } from '../../utils/welcomeTemplate.js';
 
 export default class ClientAuthService {
@@ -98,27 +101,39 @@ export default class ClientAuthService {
                 return { success: false, message: 'Correo no registrado' };
             }
 
-            // Aquí podrías generar un token si haces reset con link
-            const tempPassword = Math.random().toString(36).slice(-8); // o usa uuid
-            client.password = tempPassword;
-            await client.save();
+            // 🧪 Generar token seguro (hex aleatorio)
+            const token = crypto.randomBytes(32).toString('hex');
+            const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
 
-            //await sendPasswordRecoveryEmail(client.email, client.name || 'Usuario', tempPassword);
+            // 🧼 Limpia tokens anteriores (opcional pero recomendable)
+            await PasswordResetToken.deleteMany({ userId: client._id });
 
-            console.log('📩 Correo de recuperación enviado a:', client.email);
+            // 💾 Guarda nuevo token
+            await PasswordResetToken.create({
+                userId: client._id,
+                token,
+                expiresAt
+            });
+
+            // 📩 Enviar correo
+            const resetLink = `https://fluvi-reset.onrender.com/reset-password?token=${token}`;
+            await sendResetPasswordEmail(client.email, client.name || 'Usuario', resetLink);
+
+            console.log('📩 Enlace de recuperación enviado a:', client.email);
 
             return {
                 success: true,
-                message: 'Correo de recuperación enviado',
+                message: 'Se ha enviado un enlace de recuperación a tu correo',
             };
         } catch (error) {
-            console.error('❌ ClientAuthService - error en recoverPassword:', error);
+            console.error('❌ Error en createPasswordResetToken:', error);
             return {
                 success: false,
-                message: 'Error al intentar recuperar la contraseña',
+                message: 'Error al generar el enlace de recuperación',
             };
         }
     };
+
 
     getClientById = async (id) => {
         try {

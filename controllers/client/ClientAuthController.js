@@ -43,6 +43,21 @@ export default class ClientAuthController {
             });
         }
     };
+    resetPassword = async (req, res) => {
+        try {
+            const response = await ClientAuth.resetPassword(req.body);
+            const status = response.success ? 200 : 400;
+            return res.status(status).json(response);
+        } catch (error) {
+            console.error('❌ ClientAuthController - error en resetPassword:', error);
+            return res.status(500).json({
+                success: false,
+                message: error.message || 'Error inesperado al cambiar contraseña',
+            });
+        }
+    };
+
+
     getClientById = async (req, res) => {
         try {
             const { id } = req.params;

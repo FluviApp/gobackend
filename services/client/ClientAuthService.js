@@ -133,6 +133,47 @@ export default class ClientAuthService {
             };
         }
     };
+    resetPassword = async ({ token, newPassword }) => {
+        try {
+            if (!token || !newPassword) {
+                return { success: false, message: 'Token o contraseña faltante' };
+            }
+
+            // Buscar el token
+            const tokenDoc = await PasswordResetToken.findOne({ token });
+
+            if (!tokenDoc) {
+                return { success: false, message: 'Token inválido' };
+            }
+
+            if (tokenDoc.used) {
+                return { success: false, message: 'Este enlace ya fue utilizado' };
+            }
+
+            if (tokenDoc.expiresAt < new Date()) {
+                return { success: false, message: 'El token ha expirado' };
+            }
+
+            const client = await Clients.findById(tokenDoc.userId);
+            if (!client) {
+                return { success: false, message: 'Usuario no encontrado' };
+            }
+
+            client.password = newPassword;
+            await client.save();
+
+            // Marca el token como usado
+            tokenDoc.used = true;
+            await tokenDoc.save();
+
+            return { success: true, message: 'Contraseña actualizada correctamente' };
+
+        } catch (error) {
+            console.error('❌ ClientAuthService - error en resetPassword:', error);
+            return { success: false, message: 'Error al actualizar contraseña' };
+        }
+    };
+
 
 
     getClientById = async (id) => {

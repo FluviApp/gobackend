@@ -11,5 +11,6 @@ router.post('/recover-password', clientAuthController.recoverPassword);
 router.get('/me/:id', clientAuthController.getClientById);
 router.get('/email/:email', clientAuthController.getClientByEmail);
 router.put('/me/:id', clientAuthController.updateClient);
+router.post('/reset-password', clientAuthController.resetPassword); // 👈 nuevo endpoint
 
 export default router;

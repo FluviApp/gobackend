@@ -12,7 +12,8 @@ const {
 export default class PaymentService {
     constructor() {
         connectMongoDB();
-        this.returnUrl = 'https://fluvi.cl/payment-result.html';
+        this.returnUrl = 'https://fluvi.cl/webpay-result.html';
+
 
         // Creamos la instancia de transacción configurada para integración
         this.transaction = WebpayPlus.Transaction.buildForIntegration(

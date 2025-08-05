@@ -35,6 +35,7 @@ import ClientOrderRoutes from './routes/client/ClientOrderRoutes.js';
 import ClientNotificationRoutes from './routes/client/ClientNotificationRoutes.js';
 import ClientPacksRoutes from './routes/client/ClientPacksRoutes.js';
 import ClientZonesRoutes from './routes/client/ClientZonesRoutes.js';
+import PaymentRoutes from './routes/payment/PaymentRoutes.js'
 
 //Delivery
 import DeliveryAuthRoutes from './routes/delivery/DeliveryAuthRoutes.js'
@@ -93,6 +94,7 @@ app.use('/api/client/subcategories', ClientSubcategoriesRoutes);
 app.use('/api/client/orders', ClientOrderRoutes);
 app.use('/api/client/notifications', ClientNotificationRoutes);
 app.use('/api/client/packs', ClientPacksRoutes);
+app.use('/api/payment', PaymentRoutes);
 
 
 //Rutas delivery

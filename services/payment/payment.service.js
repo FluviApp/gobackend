@@ -1,6 +1,6 @@
 import connectMongoDB from '../../libs/mongoose.js';
 import PaymentTransaction from '../../models/PaymentTransaction.js';
-
+import Order from '../../models/Order.js';
 import pkg from 'transbank-sdk';
 
 const {
@@ -22,7 +22,7 @@ export default class PaymentService {
         );
     }
 
-    createTransaction = async ({ amount, buyOrder, sessionId }) => {
+    createTransaction = async ({ amount, buyOrder, sessionId, payload }) => {
         console.log('📥 [createTransaction] Iniciando con:', { amount, buyOrder, sessionId });
 
         // Verifica configuración del SDK
@@ -54,7 +54,8 @@ export default class PaymentService {
                 buyOrder,
                 sessionId,
                 amount,
-                status: 'CREATED'
+                status: 'CREATED',
+                payload
             });
 
             console.log('✅ [createTransaction] Transacción registrada y retornada al cliente');
@@ -79,21 +80,58 @@ export default class PaymentService {
 
 
 
+    // commitTransaction = async (token) => {
+    //     const result = await this.transaction.commit(token);
+
+    //     const trx = await PaymentTransaction.findOneAndUpdate(
+    //         { token },
+    //         { status: result.status, response: result },
+    //         { new: true }
+    //     );
+
+    //     return {
+    //         success: true,
+    //         message: 'Transacción confirmada',
+    //         data: trx
+    //     };
+    // };
     commitTransaction = async (token) => {
-        const result = await this.transaction.commit(token);
+        try {
+            const result = await this.transaction.commit(token);
 
-        const trx = await PaymentTransaction.findOneAndUpdate(
-            { token },
-            { status: result.status, response: result },
-            { new: true }
-        );
+            // Recupera la transacción con payload
+            const trx = await PaymentTransaction.findOneAndUpdate(
+                { token },
+                { status: result.status, response: result },
+                { new: true }
+            );
 
-        return {
-            success: true,
-            message: 'Transacción confirmada',
-            data: trx
-        };
+            // ✅ Si fue exitoso, crea el pedido directamente
+            if (result.status === 'AUTHORIZED' && trx?.payload) {
+                console.log('🛒 Creando pedido automáticamente desde backend...');
+                try {
+                    const res = await Order.create(trx.payload); // Asegúrate que esté importado
+                    console.log('✅ Pedido creado desde backend:', res);
+                } catch (err) {
+                    console.error('❌ Error al crear el pedido desde backend:', err);
+                }
+            }
+
+            return {
+                success: true,
+                message: 'Transacción confirmada',
+                data: trx
+            };
+        } catch (err) {
+            console.error('❌ Error en commitTransaction:', err);
+            return {
+                success: false,
+                message: 'Error al confirmar transacción',
+                error: err?.message || err
+            };
+        }
     };
+
 
     getTransactionStatus = async (token) => {
         try {

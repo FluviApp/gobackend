@@ -23,39 +23,60 @@ export default class PaymentService {
     }
 
     createTransaction = async ({ amount, buyOrder, sessionId }) => {
-        console.log('📥 Creando transacción con:', { amount, buyOrder, sessionId });
+        console.log('📥 [createTransaction] Iniciando con:', { amount, buyOrder, sessionId });
 
-        const trx = await this.transaction.create(
-            buyOrder,
-            sessionId,
-            amount,
-            this.returnUrl
-        );
+        // Verifica configuración del SDK
+        console.log('⚙️ [createTransaction] Configuración actual del SDK:');
+        console.log('   Commerce Code:', IntegrationCommerceCodes.WEBPAY_PLUS);
+        console.log('   API Key:', IntegrationApiKeys.WEBPAY);
+        console.log('   Return URL:', this.returnUrl);
+        console.log('   NODE_ENV:', process.env.NODE_ENV);
 
-        console.log('🔁 Respuesta de Transbank.create():', trx);
+        try {
+            console.log('🔧 [createTransaction] Llamando a WebpayPlus.Transaction.create...');
+            const trx = await this.transaction.create(
+                buyOrder,
+                sessionId,
+                amount,
+                this.returnUrl
+            );
 
-        if (!trx?.token || !trx?.url) {
-            console.error('❌ Transbank no retornó token o url');
-            throw new Error('Error al iniciar transacción con Transbank');
-        }
+            console.log('🔁 [createTransaction] Respuesta de Transbank.create():', trx);
 
-        await PaymentTransaction.create({
-            token: trx.token,
-            buyOrder,
-            sessionId,
-            amount,
-            status: 'CREATED'
-        });
-
-        return {
-            success: true,
-            message: 'Transacción iniciada',
-            data: {
-                token: trx.token,
-                url: trx.url
+            if (!trx?.token || !trx?.url) {
+                console.error('❌ [createTransaction] Transbank no retornó token o url');
+                throw new Error('Error al iniciar transacción con Transbank');
             }
-        };
+
+            console.log('💾 [createTransaction] Guardando transacción en MongoDB...');
+            await PaymentTransaction.create({
+                token: trx.token,
+                buyOrder,
+                sessionId,
+                amount,
+                status: 'CREATED'
+            });
+
+            console.log('✅ [createTransaction] Transacción registrada y retornada al cliente');
+
+            return {
+                success: true,
+                message: 'Transacción iniciada',
+                data: {
+                    token: trx.token,
+                    url: trx.url
+                }
+            };
+        } catch (err) {
+            console.error('❌ [createTransaction] Error al crear transacción:', err);
+            return {
+                success: false,
+                message: 'Error al crear transacción',
+                error: err?.message || err
+            };
+        }
     };
+
 
 
     commitTransaction = async (token) => {

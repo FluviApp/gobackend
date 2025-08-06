@@ -70,7 +70,6 @@ export default class PaymentController {
 
     getTransactionStatus = async (req, res) => {
         const token = req.params.token;
-        console.log(`📥 getTransactionStatus token: ${token}`);
 
         if (!token) {
             return res.status(400).json({
@@ -81,7 +80,6 @@ export default class PaymentController {
 
         try {
             const response = await service.getTransactionStatus(token);
-            console.log('✅ getTransactionStatus result:', response);
             return res.status(response.success ? 200 : 404).json(response);
         } catch (e) {
             console.error('❌ Error en getTransactionStatus:', e);
@@ -92,6 +90,7 @@ export default class PaymentController {
             });
         }
     };
+
 
     deleteTransaction = async (req, res) => {
         const token = req.params.token;

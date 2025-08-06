@@ -75,17 +75,39 @@ export default class PaymentService {
     };
 
     getTransactionStatus = async (token) => {
-        const trx = await PaymentTransaction.findOne({ token });
-        if (!trx) {
-            return { success: false, message: 'Transacción no encontrada' };
-        }
+        try {
+            // 🔍 Consulta estado real en Transbank
+            const realStatus = await this.transaction.status(token);
 
-        return {
-            success: true,
-            message: 'Estado de transacción obtenido',
-            data: trx
-        };
+            // 🔄 Actualiza base de datos si la transacción existe
+            const trx = await PaymentTransaction.findOneAndUpdate(
+                { token },
+                { status: realStatus.status, response: realStatus },
+                { new: true }
+            );
+
+            // ✅ Si no existía en Mongo, igual responde
+            const responseData = trx || {
+                token,
+                status: realStatus.status,
+                response: realStatus
+            };
+
+            return {
+                success: true,
+                message: 'Estado de transacción actualizado desde Transbank',
+                data: responseData
+            };
+        } catch (err) {
+            console.error('❌ Error al consultar estado desde Transbank:', err);
+            return {
+                success: false,
+                message: 'Error al obtener estado de transacción desde Transbank',
+                error: err?.message || err
+            };
+        }
     };
+
 
     deleteTransaction = async (token) => {
         const trx = await PaymentTransaction.findOneAndDelete({ token });

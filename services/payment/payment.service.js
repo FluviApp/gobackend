@@ -1,6 +1,6 @@
 import connectMongoDB from '../../libs/mongoose.js';
 import PaymentTransaction from '../../models/PaymentTransaction.js';
-import Order from '../../models/Order.js';
+import Order from '../../models/Orders.js';
 import pkg from 'transbank-sdk';
 
 const {

@@ -226,7 +226,6 @@ export default class DeliveryOrdersService {
                     }
                 }
 
-                // 📝 Guardar en colección Notifications
                 if (storeId && email) {
                     try {
                         await Notifications.create({

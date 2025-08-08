@@ -176,7 +176,6 @@ export default class DeliveryOrdersService {
         }
     }
 
-
     updateOrderById = async (orderId, updateData) => {
         try {
             const existingOrder = await Order.findById(orderId);
@@ -185,27 +184,26 @@ export default class DeliveryOrdersService {
             const previousStatus = existingOrder.status;
             const newStatus = updateData.status;
 
-            // 1️⃣ Lógica para asegurar que el campo `paymentMethod` no se pierda
+            // 1️⃣ Asegurar que no se pierda el paymentMethod
             const finalPaymentMethod = updateData.paymentMethod || existingOrder.paymentMethod;
 
-            // 2️⃣ Lógica para actualizar el campo `transferPay`
+            // 2️⃣ Lógica para transferPay
             if (newStatus === 'entregado' && finalPaymentMethod === 'transferencia') {
-                // Si el pedido es entregado y el pago es transferencia, transferPay se establece en 'false'
                 updateData.transferPay = false;
             } else if (newStatus !== 'entregado' || finalPaymentMethod !== 'transferencia') {
-                // Si el estado no es 'entregado' o el método de pago no es transferencia, transferPay se restablece a 'true'
                 updateData.transferPay = true;
             }
 
-            // 3️⃣ Actualizamos el pedido
+            // 3️⃣ Actualizar pedido
             const updated = await Order.findByIdAndUpdate(orderId, updateData, {
                 new: true,
                 runValidators: true,
             });
 
-            // 4️⃣ Enviar correo y notificación push si el estado cambió
+            // 4️⃣ Si el estado cambió, enviar notificaciones y guardar registro
             if (newStatus && newStatus !== previousStatus) {
                 const { name, email, notificationToken } = updated.customer || {};
+                const storeId = updated.storeId;
 
                 // 📧 Enviar correo
                 if (email) {
@@ -226,6 +224,23 @@ export default class DeliveryOrdersService {
                         console.error('❌ Error al enviar notificación push:', e);
                     }
                 }
+
+                // 📝 Guardar en colección Notifications
+                if (storeId && email) {
+                    try {
+                        await Notifications.create({
+                            storeId,
+                            email,
+                            title: `Tu pedido cambió a "${newStatus}"`,
+                            body: `Hola ${name || 'cliente'}, tu pedido ahora está en estado: ${newStatus}`,
+                            token: notificationToken || '',
+                            url: '/pedidos-usuario',
+                        });
+                        console.log('📝 Notificación guardada en base de datos');
+                    } catch (e) {
+                        console.error('❌ Error al guardar notificación en DB:', e);
+                    }
+                }
             }
 
             return updated;
@@ -235,6 +250,8 @@ export default class DeliveryOrdersService {
         }
     };
 
+
+
     // updateOrderById = async (orderId, updateData) => {
     //     try {
     //         const existingOrder = await Order.findById(orderId);
@@ -243,16 +260,29 @@ export default class DeliveryOrdersService {
     //         const previousStatus = existingOrder.status;
     //         const newStatus = updateData.status;
 
+    //         // 1️⃣ Lógica para asegurar que el campo `paymentMethod` no se pierda
+    //         const finalPaymentMethod = updateData.paymentMethod || existingOrder.paymentMethod;
+
+    //         // 2️⃣ Lógica para actualizar el campo `transferPay`
+    //         if (newStatus === 'entregado' && finalPaymentMethod === 'transferencia') {
+    //             // Si el pedido es entregado y el pago es transferencia, transferPay se establece en 'false'
+    //             updateData.transferPay = false;
+    //         } else if (newStatus !== 'entregado' || finalPaymentMethod !== 'transferencia') {
+    //             // Si el estado no es 'entregado' o el método de pago no es transferencia, transferPay se restablece a 'true'
+    //             updateData.transferPay = true;
+    //         }
+
+    //         // 3️⃣ Actualizamos el pedido
     //         const updated = await Order.findByIdAndUpdate(orderId, updateData, {
     //             new: true,
     //             runValidators: true,
     //         });
 
-    //         // 📧 Enviar correo y 📲 notificación si el estado cambió
+    //         // 4️⃣ Enviar correo y notificación push si el estado cambió
     //         if (newStatus && newStatus !== previousStatus) {
     //             const { name, email, notificationToken } = updated.customer || {};
 
-    //             // 📧 Correo
+    //             // 📧 Enviar correo
     //             if (email) {
     //                 try {
     //                     await sendOrderStatusUpdateEmail({ name, email, status: newStatus });
@@ -262,7 +292,7 @@ export default class DeliveryOrdersService {
     //                 }
     //             }
 
-    //             // 📲 Notificación push
+    //             // 📲 Enviar notificación push
     //             if (notificationToken) {
     //                 try {
     //                     await sendPushNotification({ token: notificationToken, status: newStatus });
@@ -279,4 +309,7 @@ export default class DeliveryOrdersService {
     //         throw error;
     //     }
     // };
+
+
+
 }

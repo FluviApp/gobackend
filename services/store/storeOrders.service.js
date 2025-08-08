@@ -143,7 +143,8 @@ export default class StoreOrdersService {
 
 
 
-    // Función para actualizar el pedido
+
+
     // updateOrder = async (id, data) => {
     //     try {
     //         console.log('🧪 Ejecutando updateOrder con ID:', id);
@@ -166,18 +167,24 @@ export default class StoreOrdersService {
 
     //         // 2️⃣ Lógica para actualizar transferPay:
     //         // 2️⃣ Lógica para actualizar transferPay:
+    //         // 2️⃣ Lógica para actualizar transferPay
     //         console.log('🔍 Evaluando el campo transferPay...');
 
-    //         // Si no se pasa un `paymentMethod` en la actualización, se mantiene el valor actual.
-    //         const finalPaymentMethod = data.paymentMethod || existingOrder.paymentMethod;
-
-    //         if (newStatus === 'entregado' && finalPaymentMethod === 'transferencia') {
-    //             console.log('✅ Estado "entregado" y método de pago "transferencia", se establece transferPay en false');
-    //             data.transferPay = false;
+    //         if (typeof data.transferPay !== 'undefined') {
+    //             console.log('🔧 transferPay recibido explícitamente, se mantiene:', data.transferPay);
+    //             // No hacemos nada, se respeta el valor recibido
     //         } else {
-    //             console.log('❌ Estado no es "entregado" o método de pago no es "transferencia", se establece transferPay en true');
-    //             data.transferPay = true;
+    //             // Si no vino transferPay, aplicar lógica automática como fallback
+    //             const finalPaymentMethod = data.paymentMethod || existingOrder.paymentMethod;
+    //             if (newStatus === 'entregado' && finalPaymentMethod === 'transferencia') {
+    //                 console.log('✅ Estado "entregado" y método de pago "transferencia", se establece transferPay en false');
+    //                 data.transferPay = false;
+    //             } else {
+    //                 console.log('❌ Estado no es "entregado" o método de pago no es "transferencia", se establece transferPay en true');
+    //                 data.transferPay = true;
+    //             }
     //         }
+
 
     //         // Log de los datos después de actualizar transferPay
     //         console.log('📝 Datos después de la actualización de transferPay:', data);
@@ -246,6 +253,8 @@ export default class StoreOrdersService {
     //     }
     // };
 
+
+
     updateOrder = async (id, data) => {
         try {
             console.log('🧪 Ejecutando updateOrder con ID:', id);
@@ -266,16 +275,12 @@ export default class StoreOrdersService {
             console.log(`🔄 Estado anterior: ${previousStatus} → Nuevo: ${newStatus}`);
             console.log(`💳 Método de pago anterior: ${previousPaymentMethod} → Nuevo: ${newPaymentMethod}`);
 
-            // 2️⃣ Lógica para actualizar transferPay:
-            // 2️⃣ Lógica para actualizar transferPay:
             // 2️⃣ Lógica para actualizar transferPay
             console.log('🔍 Evaluando el campo transferPay...');
 
             if (typeof data.transferPay !== 'undefined') {
                 console.log('🔧 transferPay recibido explícitamente, se mantiene:', data.transferPay);
-                // No hacemos nada, se respeta el valor recibido
             } else {
-                // Si no vino transferPay, aplicar lógica automática como fallback
                 const finalPaymentMethod = data.paymentMethod || existingOrder.paymentMethod;
                 if (newStatus === 'entregado' && finalPaymentMethod === 'transferencia') {
                     console.log('✅ Estado "entregado" y método de pago "transferencia", se establece transferPay en false');
@@ -286,20 +291,19 @@ export default class StoreOrdersService {
                 }
             }
 
-
-            // Log de los datos después de actualizar transferPay
             console.log('📝 Datos después de la actualización de transferPay:', data);
-
 
             // 3️⃣ Actualizar el pedido
             const updated = await Orders.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true });
 
-            // 4️⃣ Si cambió el estado, enviar correo y notificación push
+            // 4️⃣ Si cambió el estado, enviar notificaciones y guardar en DB
             if (newStatus && newStatus !== previousStatus) {
                 const { name, email, notificationToken } = updated.customer || {};
+                const storeId = updated.storeId;
+
                 console.log('👤 Cliente actualizado:', { name, email, notificationToken });
 
-                // Enviar correo
+                // 📧 Enviar correo
                 if (email) {
                     try {
                         console.log('📨 Enviando correo de estado actualizado...');
@@ -312,7 +316,7 @@ export default class StoreOrdersService {
                     console.warn('⚠️ No se encontró email del cliente');
                 }
 
-                // Enviar notificación push
+                // 📲 Enviar notificación push
                 if (notificationToken) {
                     try {
                         console.log('📲 Enviando notificación push...');
@@ -338,6 +342,23 @@ export default class StoreOrdersService {
                 } else {
                     console.warn('⚠️ No se encontró token de notificación del cliente');
                 }
+
+                // 📝 Guardar en colección Notifications
+                if (storeId && email) {
+                    try {
+                        await Notifications.create({
+                            storeId,
+                            email,
+                            title: `Tu pedido cambió a "${newStatus}"`,
+                            body: `Hola ${name || 'cliente'}, tu pedido ahora está en estado: ${newStatus}`,
+                            token: notificationToken || '',
+                            url: '/pedidos-usuario',
+                        });
+                        console.log('📝 Notificación guardada en base de datos');
+                    } catch (e) {
+                        console.error('❌ Error al guardar notificación en DB:', e);
+                    }
+                }
             }
 
             return {
@@ -353,9 +374,6 @@ export default class StoreOrdersService {
             };
         }
     };
-
-
-
 
 
 

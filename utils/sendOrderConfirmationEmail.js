@@ -60,10 +60,6 @@ export const sendOrderConfirmationEmail = async ({ name, email, deliveryDate, pa
                     </div>
                 ` : ''}
 
-                <div style="margin: 32px 0;">
-                    <a href="exp://192.168.100.57:8081/--/pedidos-usuario" style="display: inline-block; background-color: #0099FF; color: white; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600;">Ver mi pedido</a>
-                </div>
-
 
                 <p style="font-size: 14px; color: #777;">Gracias por confiar en Fluvi 💧</p>
                 <p style="font-size: 12px; color: #aaa;">Este correo fue generado automáticamente. No respondas a esta dirección.</p>

@@ -10,6 +10,12 @@ const notificationSchema = new Schema(
             required: true,
             index: true,
         },
+        email: {
+            type: String,
+            required: true,
+            trim: true,
+            index: true,
+        },
         title: {
             type: String,
             required: true,

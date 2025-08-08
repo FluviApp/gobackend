@@ -1,5 +1,6 @@
 import Order from '../../models/Orders.js';
 import Stores from '../../models/Stores.js';
+import Notifications from '../../models/Notifications.js';
 import { sendOrderStatusUpdateEmail } from '../../utils/sendOrderStatusUpdateEmail.js';
 import { sendPushNotification } from '../../utils/sendPushNotification.js';
 

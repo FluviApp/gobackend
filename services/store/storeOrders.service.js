@@ -1,6 +1,7 @@
 import connectMongoDB from '../../libs/mongoose.js';
 import Orders from '../../models/Orders.js';
 import User from '../../models/User.js';
+import Notifications from '../../models/Notifications.js';
 import { sendOrderStatusUpdateEmail } from '../../utils/sendOrderStatusUpdateEmail.js';
 import { sendPushNotification } from '../../utils/sendPushNotification.js';
 

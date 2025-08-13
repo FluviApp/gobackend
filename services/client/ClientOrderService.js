@@ -40,7 +40,7 @@ export default class ClientOrderService {
         return now.getHours() > hour || (now.getHours() === hour && now.getMinutes() > minute);
     }
 
-    async findOrCreateClient({ name, email, password, storeId }) {
+    async findOrCreateClient({ name, email, password, phone, address, lat, lon, storeId }) {
         let user = await Clients.findOne({ email });
 
         if (!user) {
@@ -51,6 +51,10 @@ export default class ClientOrderService {
                 email,
                 password: generatedPassword,
                 storeId,
+                phone,
+                address,
+                lat,
+                lon,
             });
 
             await user.save();
@@ -79,6 +83,10 @@ export default class ClientOrderService {
                 name: data.customer.name,
                 email: data.customer.email,
                 password: data.customer.password,
+                phone: data.customer.phone,
+                address: data.customer.address,
+                lat: data.customer.lat,
+                lon: data.customer.lon,
                 storeId: data.storeId,
             });
 

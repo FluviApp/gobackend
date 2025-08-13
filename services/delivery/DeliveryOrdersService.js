@@ -5,15 +5,22 @@ import { sendOrderStatusUpdateEmail } from '../../utils/sendOrderStatusUpdateEma
 import { sendPushNotification } from '../../utils/sendPushNotification.js';
 
 export default class DeliveryOrdersService {
+
     getOrdersByStoreGroup = async () => {
         try {
             const allowedStores = ['686475c9b8bfd36c37a820c3', '68697bf9c8e5172fd536738f'];
 
             console.log('📦 Buscando pedidos para tiendas:', allowedStores);
 
+            // Obtener la fecha de hoy
+            const today = new Date();
+            today.setHours(23, 59, 59, 999); // Establecer la hora al final del día para incluir todos los pedidos de hoy
+
+            // Construcción de la consulta con el filtro de fecha
             const query = {
                 storeId: { $in: allowedStores },
                 status: { $nin: ['entregado', 'devuelto', 'cancelado'] },
+                deliveryDate: { $lte: today }, // Nuevo filtro: Fecha de entrega menor o igual a hoy
             };
 
             console.log('🔍 Consulta Mongo:', JSON.stringify(query, null, 2));

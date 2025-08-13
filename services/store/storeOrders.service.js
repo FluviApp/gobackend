@@ -48,7 +48,7 @@ export default class StoreOrdersService {
             const options = {
                 page: parseInt(page, 10),
                 limit: parseInt(limit, 10),
-                sort: { deliveryDate: 1, 'deliverySchedule.hour': 1 },
+                sort: { deliveryDate: -1, 'deliverySchedule.hour': -1 },
             };
 
             const result = await Orders.paginate(query, options);

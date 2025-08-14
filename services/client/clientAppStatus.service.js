@@ -1,7 +1,9 @@
 import connectMongoDB from '../../libs/mongoose.js';
+import { DateTime } from 'luxon';
 import Commerce from '../../models/Commerce.js';
 import Zones from '../../models/Zones.js';
 import Stores from '../../models/Stores.js';
+import Order from '../../models/Orders.js';
 
 export default class ClientAppStatusService {
     constructor() {
@@ -49,32 +51,47 @@ export default class ClientAppStatusService {
                 return { success: false, message: 'Zonas de entrega no encontradas' };
             }
 
-            // 🔽 Agregamos filtrado de horarios válidos
-            const now = new Date();
-            const todayIndex = now.getDay(); // 0 = domingo, ..., 6 = sábado
-            const currentHour = now.getHours();
-            const currentMinute = now.getMinutes();
+            // 1. Contar los pedidos confirmados para hoy
+            const nowInChile = DateTime.now().setZone('America/Santiago');
+            const startOfDay = nowInChile.startOf('day').toJSDate();
+            const endOfDay = nowInChile.endOf('day').toJSDate();
+
+            const todayOrderCount = await Order.countDocuments({
+                storeId: storeId,
+                deliveryDate: {
+                    $gte: startOfDay,
+                    $lte: endOfDay
+                },
+                status: {
+                    $in: ['confirmado', 'preparando', 'en_camino']
+                }
+            });
+
+            // 2. Usamos Luxon para obtener la hora actual en la zona horaria de Chile
+            const currentHour = nowInChile.hour;
+            const currentMinute = nowInChile.minute;
             const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
             const filterSchedule = (schedule) => {
                 const filtered = {};
-                const now = new Date();
-                const currentHour = now.getHours();
-                const currentMinute = now.getMinutes();
-                const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-
                 let foundDays = 0;
                 let offset = 0;
 
+                // Buscamos hasta 4 días con horarios válidos
                 while (foundDays < 4 && offset < 14) {
-                    const date = new Date(now);
-                    date.setDate(now.getDate() + offset);
+                    const date = nowInChile.plus({ days: offset });
+                    const dayKey = daysOfWeek[date.weekday === 7 ? 0 : date.weekday];
 
-                    const index = date.getDay(); // 0-6
-                    const dayKey = daysOfWeek[index];
                     const dayConfig = schedule[dayKey];
 
                     if (!dayConfig?.enabled || !dayConfig?.hours) {
+                        offset++;
+                        continue;
+                    }
+
+                    // 3. Lógica para eliminar horarios de hoy si hay 10 o más pedidos
+                    if (offset === 0 && todayOrderCount >= 10) {
+                        console.log('⛔ Se han superado los 10 pedidos del día. Horarios de hoy desactivados.');
                         offset++;
                         continue;
                     }
@@ -85,6 +102,7 @@ export default class ClientAppStatusService {
 
                         const [hour, minute] = hourStr.split(':').map(Number);
 
+                        // Si es el día de hoy, filtramos las horas que ya pasaron
                         if (offset === 0) {
                             if (hour < currentHour || (hour === currentHour && minute <= currentMinute)) {
                                 return;
@@ -109,8 +127,6 @@ export default class ClientAppStatusService {
                 return filtered;
             };
 
-
-
             const formattedZones = zones.map(zone => ({
                 deliveryCost: zone.deliveryCost,
                 schedule: filterSchedule(zone.schedule)
@@ -132,4 +148,5 @@ export default class ClientAppStatusService {
             };
         }
     };
+
 }

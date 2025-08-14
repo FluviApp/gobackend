@@ -117,6 +117,8 @@ export default class ClientAppStatusService {
                     });
 
                     if (Object.keys(validHours).length > 0) {
+                        // 🔽 Log para mostrar la fecha y los horarios que se agregan
+                        console.log(`🔍 Horarios disponibles para ${date.toISODate()} (${dayKey}):`, validHours);
                         filtered[dayKey] = {
                             enabled: true,
                             hours: validHours

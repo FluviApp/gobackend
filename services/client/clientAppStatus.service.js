@@ -71,6 +71,10 @@ export default class ClientAppStatusService {
             // 🔽 Ahora el log muestra el conteo y los IDs de los pedidos encontrados
             console.log(`✅ TOTAL de pedidos para hoy (${nowInChile.toISODate()}): ${todayOrderCount} pedidos`);
             console.log(`✅ IDs de los pedidos encontrados:`, orderIds);
+            // 🔽 Nuevo log para mostrar la fecha de entrega de cada pedido
+            todayOrders.forEach(order => {
+                console.log(`🔍 Pedido ID: ${order._id}, Fecha de entrega: ${order.deliveryDate.toISOString()}`);
+            });
             console.log(`✅ Límite de pedidos para hoy: 10`);
 
             // 2. Usamos Luxon para obtener la hora actual en la zona horaria de Chile
@@ -154,6 +158,7 @@ export default class ClientAppStatusService {
             };
         }
     };
+
 
 
 

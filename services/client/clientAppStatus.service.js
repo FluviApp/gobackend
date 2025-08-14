@@ -142,32 +142,46 @@ export default class ClientAppStatusService {
     // };
 
     getStoreData = async (storeId) => {
-
         try {
-
             const store = await Stores.findOne({ _id: storeId }).lean();
-
-            if (!store) {
-                return { success: false, message: 'Tienda no encontrada' };
-            }
+            if (!store) return { success: false, message: 'Tienda no encontrada' };
 
             const zones = await Zones.find({ storeId }).lean();
-
             if (!zones || zones.length === 0) {
                 return { success: false, message: 'Zonas de entrega no encontradas' };
             }
 
-            // 🔽 Hora Chile garantizada
-            const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Santiago" }));
-            const todayIndex = now.getDay(); // 0 = domingo, ..., 6 = sábado
-            const currentHour = now.getHours();
-            const currentMinute = now.getMinutes();
+            // ====== LOGS DE HORA/FECHA ======
+            const fmt = (d) => ({
+                ts: d.getTime(),
+                iso: d.toISOString(),
+                local: d.toString(),
+                cl: new Date(d.toLocaleString('en-US', { timeZone: 'America/Santiago' })).toString(),
+                cl_str: d.toLocaleString('es-CL', { timeZone: 'America/Santiago' }),
+            });
+
+            const nowCL = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Santiago' }));
+            const nowSrv = new Date();
+
+            console.log('🕒 NOW (Servidor/local):', fmt(nowSrv));
+            console.log('🕒 NOW (America/Santiago):', fmt(nowCL));
+
+            const todayIndex = nowCL.getDay(); // 0=dom ... 6=sáb
+            const currentHour = nowCL.getHours();
+            const currentMinute = nowCL.getMinutes();
             const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
-            // 🔽 Calcular inicio/fin de HOY en Chile como fechas UTC para Mongo
-            const serverNow = new Date(); // hora del servidor
-            const clNow = new Date(serverNow.toLocaleString("en-US", { timeZone: "America/Santiago" }));
-            const tzDiffMs = serverNow.getTime() - clNow.getTime(); // diferencia UTC vs Chile en ms
+            console.log(`📅 Hoy en Chile: index=${todayIndex} (${daysOfWeek[todayIndex]}), ${nowCL.toLocaleString('es-CL', { timeZone: 'America/Santiago' })}`);
+            console.log(`⏰ Hora actual Chile: ${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`);
+
+            // ====== CÁLCULO RANGO HOY CHILE COMO UTC PARA MONGO ======
+            const serverNow = new Date(); // hora del servidor (zona del servidor)
+            const clNow = new Date(serverNow.toLocaleString('en-US', { timeZone: 'America/Santiago' }));
+            const tzDiffMs = serverNow.getTime() - clNow.getTime(); // diferencia servidor vs Chile
+
+            console.log('🧭 serverNow:', fmt(serverNow));
+            console.log('🧭 clNow (derivado de serverNow):', fmt(clNow));
+            console.log('🔁 tzDiffMs (serverNow - clNow):', tzDiffMs, 'ms (~', (tzDiffMs / 3600000).toFixed(2), 'h )');
 
             const y = clNow.getFullYear(), m = clNow.getMonth(), d = clNow.getDate();
             const startCLLocal = new Date(y, m, d, 0, 0, 0, 0);
@@ -175,25 +189,33 @@ export default class ClientAppStatusService {
             const todayStartUTC = new Date(startCLLocal.getTime() + tzDiffMs);
             const todayEndUTC = new Date(endCLLocal.getTime() + tzDiffMs);
 
-            // 🔽 Contar pedidos con entrega HOY (excluye cancelado)
+            console.log('📦 startCLLocal:', fmt(startCLLocal));
+            console.log('📦 endCLLocal  :', fmt(endCLLocal));
+            console.log('🌐 todayStartUTC (para Mongo $gte):', fmt(todayStartUTC));
+            console.log('🌐 todayEndUTC   (para Mongo $lte):', fmt(todayEndUTC));
+
+            // ====== CUENTA PEDIDOS HOY ======
             const todayOrdersCount = await Order.countDocuments({
                 storeId,
                 status: { $nin: ['cancelado'] },
                 deliveryDate: { $gte: todayStartUTC, $lte: todayEndUTC }
             });
 
-            // 🔽 Si supera el umbral, no ofrecer horarios de HOY
             const BLOCK_TODAY_THRESHOLD = 10;
             const shouldBlockToday = todayOrdersCount > BLOCK_TODAY_THRESHOLD;
+
+            console.log(`🧮 Pedidos HOY (Chile): ${todayOrdersCount} | Umbral=${BLOCK_TODAY_THRESHOLD} | shouldBlockToday=${shouldBlockToday}`);
 
             const filterSchedule = (schedule) => {
                 const filtered = {};
 
                 // Recalcular “ahora” en Chile dentro de la función
-                const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Santiago" }));
+                const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Santiago' }));
                 const currentHour = now.getHours();
                 const currentMinute = now.getMinutes();
                 const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+                console.log('🧩 Filtrando horarios desde (Chile):', now.toLocaleString('es-CL', { timeZone: 'America/Santiago' }));
 
                 let foundDays = 0;
                 let offset = 0;
@@ -206,13 +228,16 @@ export default class ClientAppStatusService {
                     const dayKey = daysOfWeek[index];
                     const dayConfig = schedule[dayKey];
 
+                    console.log(`\n📅 Día offset=${offset} => ${dayKey} (${date.toLocaleDateString('es-CL', { timeZone: 'America/Santiago' })})`);
+
                     if (!dayConfig?.enabled || !dayConfig?.hours) {
+                        console.log('  ⛔ Día deshabilitado o sin horas');
                         offset++;
                         continue;
                     }
 
-                    // 🚫 Si hoy está bloqueado por capacidad, saltamos todo el día
                     if (offset === 0 && shouldBlockToday) {
+                        console.log('  🚫 HOY bloqueado por capacidad (shouldBlockToday=true)');
                         offset++;
                         continue;
                     }
@@ -220,25 +245,24 @@ export default class ClientAppStatusService {
                     const validHours = {};
                     Object.entries(dayConfig.hours).forEach(([hourStr, isActive]) => {
                         if (!isActive) return;
-
                         const [hour, minute] = hourStr.split(':').map(Number);
 
-                        // Para hoy, descarta horas ya pasadas
                         if (offset === 0) {
-                            if (hour < currentHour || (hour === currentHour && minute <= currentMinute)) {
+                            const passed = hour < currentHour || (hour === currentHour && minute <= currentMinute);
+                            if (passed) {
+                                console.log(`  ⏭️  Descartando hora pasada HOY: ${hourStr} (ahora=${currentHour}:${String(currentMinute).padStart(2, '0')})`);
                                 return;
                             }
                         }
-
                         validHours[hourStr] = true;
                     });
 
                     if (Object.keys(validHours).length > 0) {
-                        filtered[dayKey] = {
-                            enabled: true,
-                            hours: validHours
-                        };
+                        console.log('  ✅ Horas disponibles para', dayKey, ':', Object.keys(validHours));
+                        filtered[dayKey] = { enabled: true, hours: validHours };
                         foundDays++;
+                    } else {
+                        console.log('  ❗ Sin horas válidas después del filtro');
                     }
 
                     offset++;
@@ -250,7 +274,7 @@ export default class ClientAppStatusService {
 
             const formattedZones = zones.map(zone => ({
                 deliveryCost: zone.deliveryCost,
-                schedule: filterSchedule(zone.schedule)
+                schedule: filterSchedule(zone.schedule),
             }));
 
             return {
@@ -258,19 +282,15 @@ export default class ClientAppStatusService {
                 message: 'Datos de tienda obtenidos correctamente',
                 data: {
                     paymentMethods: store.paymentmethod,
-                    deliveryZones: formattedZones
-                }
+                    deliveryZones: formattedZones,
+                },
             };
-
         } catch (error) {
             console.error('❌ Servicio - Error al obtener datos de tienda:', error);
-            return {
-                success: false,
-                message: 'Error inesperado al obtener datos de tienda',
-            };
+            return { success: false, message: 'Error inesperado al obtener datos de tienda' };
         }
-
     };
+
 
 
 

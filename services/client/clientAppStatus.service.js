@@ -57,16 +57,20 @@ export default class ClientAppStatusService {
             const startOfDay = nowInChile.startOf('day').toJSDate();
             const endOfDay = nowInChile.endOf('day').toJSDate();
 
-            const todayOrderCount = await Order.countDocuments({
+            // 🔽 CAMBIO: Usamos find() en lugar de countDocuments() para obtener los pedidos
+            const todayOrders = await Order.find({
                 storeId: storeId,
                 deliveryDate: {
                     $gte: startOfDay,
                     $lte: endOfDay
                 }
             });
+            const todayOrderCount = todayOrders.length;
+            const orderIds = todayOrders.map(order => order._id);
 
-            // 🔽 Agregamos un log para ayudarte a depurar
+            // 🔽 Ahora el log muestra el conteo y los IDs de los pedidos encontrados
             console.log(`✅ TOTAL de pedidos para hoy (${nowInChile.toISODate()}): ${todayOrderCount} pedidos`);
+            console.log(`✅ IDs de los pedidos encontrados:`, orderIds);
             console.log(`✅ Límite de pedidos para hoy: 10`);
 
             // 2. Usamos Luxon para obtener la hora actual en la zona horaria de Chile
@@ -147,8 +151,8 @@ export default class ClientAppStatusService {
                 message: 'Error inesperado al obtener datos de tienda',
             };
         }
+    };
 
-    }
 
 
 }

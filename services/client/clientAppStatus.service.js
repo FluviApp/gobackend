@@ -39,6 +39,7 @@ export default class ClientAppStatusService {
         }
     };
 
+
     getStoreData = async (storeId) => {
         try {
             const store = await Stores.findOne({ _id: storeId }).lean();
@@ -62,7 +63,6 @@ export default class ClientAppStatusService {
                     $gte: startOfDay,
                     $lte: endOfDay
                 }
-                // 🔽 Se eliminó el filtro de estado para contar todos los pedidos.
             });
 
             // 🔽 Agregamos un log para ayudarte a depurar
@@ -79,11 +79,10 @@ export default class ClientAppStatusService {
                 let foundDays = 0;
                 let offset = 0;
 
-                // Buscamos hasta 4 días con horarios válidos
                 while (foundDays < 4 && offset < 14) {
                     const date = nowInChile.plus({ days: offset });
+                    // 🔽 Ajustamos el índice de día para que coincida con el array daysOfWeek
                     const dayKey = daysOfWeek[date.weekday === 7 ? 0 : date.weekday];
-
                     const dayConfig = schedule[dayKey];
 
                     if (!dayConfig?.enabled || !dayConfig?.hours) {
@@ -104,7 +103,6 @@ export default class ClientAppStatusService {
 
                         const [hour, minute] = hourStr.split(':').map(Number);
 
-                        // Si es el día de hoy, filtramos las horas que ya pasaron
                         if (offset === 0) {
                             if (hour < currentHour || (hour === currentHour && minute <= currentMinute)) {
                                 return;
@@ -149,7 +147,8 @@ export default class ClientAppStatusService {
                 message: 'Error inesperado al obtener datos de tienda',
             };
         }
-    };
+
+    }
 
 
 }

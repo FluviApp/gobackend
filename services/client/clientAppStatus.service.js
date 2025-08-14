@@ -51,7 +51,7 @@ export default class ClientAppStatusService {
                 return { success: false, message: 'Zonas de entrega no encontradas' };
             }
 
-            // 1. Contar los pedidos confirmados para hoy
+            // 1. Contar TODOS los pedidos para hoy, sin importar el estado
             const nowInChile = DateTime.now().setZone('America/Santiago');
             const startOfDay = nowInChile.startOf('day').toJSDate();
             const endOfDay = nowInChile.endOf('day').toJSDate();
@@ -61,11 +61,13 @@ export default class ClientAppStatusService {
                 deliveryDate: {
                     $gte: startOfDay,
                     $lte: endOfDay
-                },
-                status: {
-                    $in: ['confirmado', 'preparando', 'en_camino']
                 }
+                // 🔽 Se eliminó el filtro de estado para contar todos los pedidos.
             });
+
+            // 🔽 Agregamos un log para ayudarte a depurar
+            console.log(`✅ TOTAL de pedidos para hoy (${nowInChile.toISODate()}): ${todayOrderCount} pedidos`);
+            console.log(`✅ Límite de pedidos para hoy: 10`);
 
             // 2. Usamos Luxon para obtener la hora actual en la zona horaria de Chile
             const currentHour = nowInChile.hour;
@@ -148,5 +150,6 @@ export default class ClientAppStatusService {
             };
         }
     };
+
 
 }

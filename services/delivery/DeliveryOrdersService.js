@@ -3,6 +3,14 @@ import Stores from '../../models/Stores.js';
 import Notifications from '../../models/Notifications.js';
 import { sendOrderStatusUpdateEmail } from '../../utils/sendOrderStatusUpdateEmail.js';
 import { sendPushNotification } from '../../utils/sendPushNotification.js';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc.js';
+import timezone from 'dayjs/plugin/timezone.js';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const TZ = 'America/Santiago';
 
 export default class DeliveryOrdersService {
 
@@ -61,46 +69,99 @@ export default class DeliveryOrdersService {
         }
     };
 
+    // getClosedOrdersByStoreGroup = async () => {
+    //     try {
+    //         const allowedStores = ['686475c9b8bfd36c37a820c3', '68697bf9c8e5172fd536738f'];
+
+    //         console.log('📦 Buscando pedidos cerrados para tiendas:', allowedStores);
+
+    //         const query = {
+    //             storeId: { $in: allowedStores },
+    //             status: { $in: ['entregado', 'devuelto', 'cancelado'] },
+    //         };
+
+    //         console.log('🔍 Consulta Mongo:', JSON.stringify(query, null, 2));
+
+    //         // Buscar pedidos
+    //         const orders = await Order.find(query).sort({ createdAt: -1 });
+
+    //         console.log(`✅ Se encontraron ${orders.length} pedidos cerrados`);
+
+    //         // Extraer storeIds únicos
+    //         const storeIds = [...new Set(orders.map(o => o.storeId))];
+
+    //         // Buscar info de tiendas
+    //         const stores = await Stores.find(
+    //             { _id: { $in: storeIds } },
+    //             { name: 1, image: 1 }
+    //         );
+
+    //         // Crear mapa de info de tiendas
+    //         const storeMap = {};
+    //         stores.forEach(store => {
+    //             storeMap[store._id.toString()] = {
+    //                 name: store.name,
+    //                 image: store.image,
+    //             };
+    //         });
+
+    //         // Enriquecer pedidos con storeInfo
+    //         const enrichedOrders = orders.map(order => ({
+    //             ...order.toObject(),
+    //             storeInfo: storeMap[order.storeId] || null,
+    //         }));
+
+    //         return enrichedOrders;
+    //     } catch (error) {
+    //         console.error('❌ Error en getClosedOrdersByStoreGroup:', error);
+    //         throw error;
+    //     }
+    // };
+
     getClosedOrdersByStoreGroup = async () => {
         try {
             const allowedStores = ['686475c9b8bfd36c37a820c3', '68697bf9c8e5172fd536738f'];
 
-            console.log('📦 Buscando pedidos cerrados para tiendas:', allowedStores);
+            // Calcular inicio y fin del día según hora de Chile y convertir a UTC
+            const startUtc = dayjs().tz(TZ).startOf('day').utc().toDate();
+            const endUtc = dayjs().tz(TZ).endOf('day').utc().toDate();
+
+            console.log('📅 Rango HOY (Chile) → UTC:', { startUtc, endUtc });
 
             const query = {
                 storeId: { $in: allowedStores },
                 status: { $in: ['entregado', 'devuelto', 'cancelado'] },
+                deliveryDate: { $gte: startUtc, $lte: endUtc },
             };
 
             console.log('🔍 Consulta Mongo:', JSON.stringify(query, null, 2));
 
-            // Buscar pedidos
+            // Buscar pedidos cerrados de hoy
             const orders = await Order.find(query).sort({ createdAt: -1 });
+            console.log(`✅ Se encontraron ${orders.length} pedidos cerrados de HOY (Chile)`);
 
-            console.log(`✅ Se encontraron ${orders.length} pedidos cerrados`);
+            // Obtener IDs únicos de tiendas
+            const storeIds = [...new Set(orders.map(o => o.storeId?.toString()))].filter(Boolean);
 
-            // Extraer storeIds únicos
-            const storeIds = [...new Set(orders.map(o => o.storeId))];
-
-            // Buscar info de tiendas
+            // Buscar info de las tiendas
             const stores = await Stores.find(
                 { _id: { $in: storeIds } },
                 { name: 1, image: 1 }
             );
 
-            // Crear mapa de info de tiendas
+            // Crear mapa rápido de tiendas
             const storeMap = {};
-            stores.forEach(store => {
+            for (const store of stores) {
                 storeMap[store._id.toString()] = {
                     name: store.name,
                     image: store.image,
                 };
-            });
+            }
 
-            // Enriquecer pedidos con storeInfo
+            // Enriquecer pedidos con info de tienda
             const enrichedOrders = orders.map(order => ({
                 ...order.toObject(),
-                storeInfo: storeMap[order.storeId] || null,
+                storeInfo: storeMap[order.storeId?.toString()] || null,
             }));
 
             return enrichedOrders;
@@ -109,7 +170,6 @@ export default class DeliveryOrdersService {
             throw error;
         }
     };
-
 
 
 

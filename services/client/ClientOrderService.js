@@ -42,49 +42,46 @@ export default class ClientOrderService {
 
 
     getNextWeekdayDate(dayName, hourString) {
-        // Siempre calcular usando hora local de Chile
+        // Queremos que deliveryDate represente el DÍA de entrega (Chile).
+        // Fijamos SIEMPRE 12:00 Chile y convertimos a UTC para Mongo.
+
         const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
-        // "Ahora" en Chile
+        // 1) "Ahora" en Chile
         const clNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Santiago' }));
-        const todayDay = clNow.getDay();
-        const targetDay = daysOfWeek.indexOf(dayName.toLowerCase());
+        const todayIdxCL = clNow.getDay();
+        const targetIdx = daysOfWeek.indexOf(String(dayName).toLowerCase());
 
-        // ¿Cuántos días faltan para el día objetivo (según Chile)?
-        let daysUntilTarget = targetDay - todayDay;
-        if (daysUntilTarget < 0 || (daysUntilTarget === 0 && this.isPastHour(hourString))) {
-            daysUntilTarget += 7;
-        }
+        // 2) Días hasta el objetivo (sin sumar 7 si es hoy)
+        let daysUntilTarget = targetIdx - todayIdxCL;
+        if (daysUntilTarget < 0) daysUntilTarget += 7;
 
-        // Construir la fecha objetivo en HORA CHILE
-        const targetDateCL = new Date(clNow);
-        targetDateCL.setDate(clNow.getDate() + daysUntilTarget);
+        // 3) Fecha objetivo en CHILE a las 12:00
+        const y = clNow.getFullYear(), m = clNow.getMonth(), d = clNow.getDate();
+        const targetCL = new Date(y, m, d + daysUntilTarget, 12, 0, 0, 0); // ← mediodía
 
-        const [hour, minute] = hourString.split(':').map(Number);
-        targetDateCL.setHours(hour, minute, 0, 0);
-
-        // Convertir esa fecha/hora de CHILE a UTC para guardar en Mongo:
-        // tzDiffMs = (hora del servidor) - (misma hora expresada en Chile)
+        // 4) Convertir CHILE → UTC para guardar
         const serverNow = new Date();
-        const tzDiffMs = serverNow.getTime() - clNow.getTime();
-        const targetDateUTC = new Date(targetDateCL.getTime() + tzDiffMs);
+        const tzDiffMs = serverNow.getTime() - clNow.getTime(); // servidor - Chile
+        const targetUTC = new Date(targetCL.getTime() + tzDiffMs);
+        targetUTC.setMilliseconds(0);
 
-        // (Opcional) logs de trazabilidad:
-        // console.log('[getNextWeekdayDate] dayName:', dayName, 'hour:', hourString,
-        //   '| clNow:', clNow.toString(),
-        //   '| targetDateCL:', targetDateCL.toString(),
-        //   '| deliveryDateUTC:', targetDateUTC.toISOString());
+        // 🔎 Huella en logs (deja mientras depuras)
+        console.log('🧭 getNextWeekdayDate:',
+            { dayName, hourString, targetCL: targetCL.toString(), targetUTC: targetUTC.toISOString() });
 
-        return targetDateUTC;
+        return targetUTC;
     }
+
     isPastHour(hourString) {
-        // Comparar contra la hora ACTUAL de Chile (no del servidor)
+        // Correcta en hora Chile (por si la usas en otros lados).
         const clNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Santiago' }));
         const [hour, minute] = hourString.split(':').map(Number);
         const hNow = clNow.getHours();
         const mNow = clNow.getMinutes();
         return hNow > hour || (hNow === hour && mNow > minute);
     }
+
 
     async findOrCreateClient({ name, email, password, phone, address, lat, lon, storeId }) {
         let user = await Clients.findOne({ email });
@@ -213,16 +210,21 @@ export default class ClientOrderService {
 
     createOrder = async (data) => {
         try {
-            // 📅 Calcular fecha de entrega si se indica horario (usando hora Chile → UTC)
+            // 📅 deliveryDate = DÍA de entrega (Chile) a las 12:00, convertido a UTC
             if (data.deliverySchedule?.day && data.deliverySchedule?.hour) {
                 const deliveryDate = this.getNextWeekdayDate(
                     data.deliverySchedule.day,
                     data.deliverySchedule.hour
                 );
+                console.log('🧾 DELIVERY (final):', {
+                    day: data.deliverySchedule.day,
+                    hour: data.deliverySchedule.hour,
+                    deliveryDateUTC: deliveryDate.toISOString()
+                });
                 data.deliveryDate = deliveryDate;
             }
 
-            // 👤 Buscar o crear el usuario
+            // 👤 Buscar/crear usuario
             const { user, wasCreated, generatedPassword } = await this.findOrCreateClient({
                 name: data.customer.name,
                 email: data.customer.email,
@@ -234,7 +236,7 @@ export default class ClientOrderService {
                 storeId: data.storeId,
             });
 
-            // 🔗 Copiar todos los datos del usuario al pedido
+            // 🔗 Copiar datos usuario al pedido
             data.customer = {
                 id: user._id,
                 name: user.name,
@@ -243,22 +245,17 @@ export default class ClientOrderService {
                 address: user.address,
                 lat: user.lat,
                 lon: user.lon,
-                notificationToken: user.token, // ✅ crucial si notificas por push
+                notificationToken: user.token,
             };
 
-            // 🚚 Asignar automáticamente un dealer por zona (si hay zoneId)
+            // 🚚 Dealer por zona (si aplica)
             if (data.zoneId) {
                 const zone = await Zones.findById(data.zoneId).lean();
-
                 if (zone?.dealerId) {
                     const dealer = await Dealers.findById(zone.dealerId).lean();
-
                     if (dealer) {
                         console.log('🚚 Dealer asignado automáticamente:', dealer.name);
-                        data.deliveryPerson = {
-                            id: dealer._id.toString(),
-                            name: dealer.name,
-                        };
+                        data.deliveryPerson = { id: dealer._id.toString(), name: dealer.name };
                     } else {
                         console.log('⚠️ No se encontró dealer con ese dealerId:', zone.dealerId);
                     }
@@ -267,11 +264,11 @@ export default class ClientOrderService {
                 }
             }
 
-            // 🧾 Crear el pedido
+            // 🧾 Crear pedido
             const newOrder = new Order(data);
             await newOrder.save();
 
-            // 📧 Enviar correo de confirmación (con contraseña si fue creado)
+            // 📧 Confirmación
             const { email, name } = newOrder.customer || {};
             if (email) {
                 await sendOrderConfirmationEmail({
@@ -282,31 +279,20 @@ export default class ClientOrderService {
                 });
             }
 
-            // 🔔 Notificar al admin de ese store
+            // 🔔 Notificar admin
             const admin = await User.findOne({ storeId: data.storeId, role: 'admin' });
-            console.log(admin?.admin?.mail);
-            console.log('📧 Notificando al admin:', admin.mail);
+            console.log('📧 Notificando al admin:', admin?.mail);
             if (admin?.mail) {
                 await sendAdminNewOrderNotification({ email: admin.mail, order: newOrder });
             }
 
-            // ✅ Retornar también el usuario para autologin
-            return {
-                success: true,
-                message: 'Pedido creado exitosamente',
-                data: {
-                    order: newOrder,
-                    user,
-                },
-            };
+            return { success: true, message: 'Pedido creado exitosamente', data: { order: newOrder, user } };
         } catch (error) {
             console.error('❌ ClientOrderService - error en createOrder:', error);
-            return {
-                success: false,
-                message: 'No se pudo crear el pedido',
-            };
+            return { success: false, message: 'No se pudo crear el pedido' };
         }
-    };
+    }
+
 
 
 

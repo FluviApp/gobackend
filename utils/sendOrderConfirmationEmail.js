@@ -1,22 +1,29 @@
-import getResendClient from '../libs/resend.js';
+// import getResendClient from '../libs/resend.js';
 
-export const sendOrderConfirmationEmail = async ({ name, email, deliveryDate, password }) => {
+export const sendOrderConfirmationEmail = async ({ name, email, deliveryDate, deliverySchedule, password }) => {
     try {
         console.log('📨 Enviando correo de confirmación...');
         console.log('👤 Cliente:', { name, email });
-        console.log('📅 Fecha de entrega:', deliveryDate);
+        console.log('📅 Fecha de entrega (deliveryDate):', deliveryDate);
+        console.log('🕒 Hora de entrega (deliverySchedule.hour):', deliverySchedule?.hour);
         if (password) console.log('🔐 Contraseña generada incluida en el correo.');
 
         const resend = getResendClient();
 
+        // Solo FECHA desde deliveryDate
         const formattedDate = deliveryDate
-            ? new Date(deliveryDate).toLocaleString('es-CL', {
+            ? new Date(deliveryDate).toLocaleDateString('es-CL', {
                 weekday: 'long',
                 day: 'numeric',
                 month: 'long',
-                hour: '2-digit',
-                minute: '2-digit',
             })
+            : null;
+
+        // HORA desde deliverySchedule.hour (p. ej. "16:00")
+        const formattedHour = deliverySchedule?.hour || null;
+
+        const fechaHoraTexto = formattedDate
+            ? `${formattedDate}${formattedHour ? ' — ' + formattedHour : ''}`
             : null;
 
         // Texto plano
@@ -25,8 +32,8 @@ export const sendOrderConfirmationEmail = async ({ name, email, deliveryDate, pa
             '',
             'Hemos recibido tu pedido correctamente y lo estamos preparando con mucho cariño.',
             '',
-            formattedDate
-                ? `🕒 Entrega programada para: ${formattedDate}`
+            fechaHoraTexto
+                ? `🕒 Entrega programada para: ${fechaHoraTexto}`
                 : '🚚 Te notificaremos pronto cuando tu pedido esté en camino.',
             '',
             ...(password ? [
@@ -48,8 +55,8 @@ export const sendOrderConfirmationEmail = async ({ name, email, deliveryDate, pa
                 <h2 style="color: #0099FF;">🎉 ¡Gracias por tu pedido, ${name || 'amig@'}!</h2>
                 <p style="font-size: 16px; color: #333;">Hemos recibido tu pedido y lo estamos preparando con mucho cariño.</p>
 
-                ${formattedDate
-                ? `<p style="font-size: 16px; color: #333;">🕒 Entrega estimada: <strong>${formattedDate}</strong></p>`
+                ${fechaHoraTexto
+                ? `<p style="font-size: 16px; color: #333;">🕒 Entrega estimada: <strong>${fechaHoraTexto}</strong></p>`
                 : `<p style="font-size: 16px; color: #333;">🚚 Te notificaremos cuando esté en camino.</p>`}
 
                 ${password ? `
@@ -59,7 +66,6 @@ export const sendOrderConfirmationEmail = async ({ name, email, deliveryDate, pa
                         <p style="font-size: 14px; color: #555;">Puedes cambiar tu contraseña cuando lo desees desde tu perfil.</p>
                     </div>
                 ` : ''}
-
 
                 <p style="font-size: 14px; color: #777;">Gracias por confiar en Fluvi 💧</p>
                 <p style="font-size: 12px; color: #aaa;">Este correo fue generado automáticamente. No respondas a esta dirección.</p>

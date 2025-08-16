@@ -275,6 +275,7 @@ export default class ClientOrderService {
                     email,
                     name,
                     deliveryDate: newOrder.deliveryDate,
+                    deliverySchedule: newOrder.deliverySchedule,
                     password: wasCreated ? generatedPassword : undefined,
                 });
             }

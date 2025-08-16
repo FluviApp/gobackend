@@ -110,7 +110,9 @@ export default class StoreOrdersService {
 
             // 👤 Si tiene un cliente asignado, completar sus datos desde DB
             if (data.customer?.id) {
+
                 const user = await User.findById(data.customer.id).lean();
+                console.log(user.email)
                 if (user) {
                     data.customer = {
                         id: user._id,

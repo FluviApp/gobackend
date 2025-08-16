@@ -269,23 +269,12 @@ export default class ClientOrderService {
             await newOrder.save();
 
             // 📧 Confirmación
-            // const { email, name } = newOrder.customer || {};
-            // if (email) {
-            //     await sendOrderConfirmationEmail({
-            //         email,
-            //         name,
-            //         deliveryDate: newOrder.deliveryDate,
-            //         password: wasCreated ? generatedPassword : undefined,
-            //     });
-            // }
-
             const { email, name } = newOrder.customer || {};
             if (email) {
                 await sendOrderConfirmationEmail({
                     email,
                     name,
-                    deliveryDate: newOrder.deliveryDate,          // solo fecha para mostrar
-                    deliverySchedule: newOrder.deliverySchedule,  // hora desde acá
+                    deliveryDate: newOrder.deliveryDate,
                     password: wasCreated ? generatedPassword : undefined,
                 });
             }

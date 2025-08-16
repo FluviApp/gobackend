@@ -112,7 +112,7 @@ export default class StoreOrdersService {
             if (data.customer?.id) {
 
                 const user = await User.findById(data.customer.id).lean();
-                console.log(user.email)
+                console.log(user.email + '   ------ correo del usuario')
                 if (user) {
                     data.customer = {
                         id: user._id,

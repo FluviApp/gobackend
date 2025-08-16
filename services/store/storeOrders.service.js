@@ -5,6 +5,18 @@ import Notifications from '../../models/Notifications.js';
 import { sendOrderStatusUpdateEmail } from '../../utils/sendOrderStatusUpdateEmail.js';
 import { sendPushNotification } from '../../utils/sendPushNotification.js';
 
+// ⏰ Zona horaria Chile con dayjs
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc.js';
+import timezone from 'dayjs/plugin/timezone.js';
+dayjs.extend(utc);
+dayjs.extend(timezone);
+const TZ = 'America/Santiago';
+dayjs.tz.setDefault(TZ);
+
+// (opcional pero recomendado) Fijar TZ del proceso si tu hosting lo respeta
+// process.env.TZ = TZ;
+
 export default class StoreOrdersService {
     constructor() {
         connectMongoDB();
@@ -24,23 +36,20 @@ export default class StoreOrdersService {
 
             const query = { storeId };
 
-            // Filtro por rango de fechas (deliveryDate)
+            // ⏰ Filtro por rango de fechas (deliveryDate) en hora de Chile
+            // Si vienen YYYY-MM-DD, interpretamos ese día en Chile y obtenemos su inicio/fin locales.
             if (startDate && endDate) {
-                const start = new Date(startDate);
-                start.setHours(0, 0, 0, 0);
-
-                const end = new Date(endDate);
-                end.setHours(23, 59, 59, 999);
-
+                const start = dayjs.tz(startDate, TZ).startOf('day').toDate();
+                const end = dayjs.tz(endDate, TZ).endOf('day').toDate();
                 query.deliveryDate = { $gte: start, $lte: end };
             }
 
-            // Filtro por estado (si viene)
+            // Filtro por estado
             if (status) {
                 query.status = status;
             }
 
-            // Filtro por transferPay (si viene explícitamente, como string)
+            // Filtro por transferPay (string "true"/"false")
             if (typeof transferPay !== 'undefined') {
                 query.transferPay = transferPay === 'true';
             }
@@ -67,62 +76,59 @@ export default class StoreOrdersService {
         }
     };
 
-
-
-
-
-
-
+    // ⏰ Helpers con TZ Chile
     getNextWeekdayDate(dayName, hourString) {
         const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-        const today = new Date();
-        const todayDay = today.getDay();
+
+        const now = dayjs().tz(TZ);
+        const todayDay = now.day(); // 0-6 (domingo=0)
         const targetDay = daysOfWeek.indexOf(dayName.toLowerCase());
 
-        let daysUntilTarget = targetDay - todayDay;
-        if (daysUntilTarget < 0 || (daysUntilTarget === 0 && this.isPastHour(hourString))) {
-            daysUntilTarget += 7;
-        }
-
-        const targetDate = new Date();
-        targetDate.setDate(today.getDate() + daysUntilTarget);
+        let diff = (targetDay - todayDay + 7) % 7;
 
         const [hour, minute] = hourString.split(':').map(Number);
-        targetDate.setHours(hour, minute, 0, 0);
+        const todayAtHour = now.hour(hour).minute(minute).second(0).millisecond(0);
 
-        return targetDate;
+        // Si es hoy y la hora ya pasó en Chile, manda para la próxima semana
+        if (diff === 0 && now.isAfter(todayAtHour)) diff = 7;
+
+        const target = now.add(diff, 'day').hour(hour).minute(minute).second(0).millisecond(0);
+        return target.toDate(); // Se guarda en UTC, pero representa esa hora local de Chile
     }
 
     isPastHour(hourString) {
-        const now = new Date();
+        const now = dayjs().tz(TZ);
         const [hour, minute] = hourString.split(':').map(Number);
-        return now.getHours() > hour || (now.getHours() === hour && now.getMinutes() > minute);
+        const atHour = now.hour(hour).minute(minute).second(0).millisecond(0);
+        return now.isAfter(atHour);
     }
-
 
     createOrder = async (data) => {
         try {
-            // 📅 Calcular fecha de entrega si no viene explícita
+            // ⏰ Calcular deliveryDate en Chile si no viene
             if ((!data.deliveryDate || data.deliveryDate === '') && data.deliverySchedule?.day && data.deliverySchedule?.hour) {
                 const deliveryDate = this.getNextWeekdayDate(data.deliverySchedule.day, data.deliverySchedule.hour);
                 data.deliveryDate = deliveryDate;
+            } else if (data.deliveryDate) {
+                // Si te llega un string de fecha (ej. YYYY-MM-DD), normalízalo a Chile fin/inicio según convenga.
+                // Aquí asumimos que viene con fecha-hora ya correcta; si viene solo fecha:
+                const parsed = dayjs.tz(data.deliveryDate, TZ);
+                if (parsed.isValid()) data.deliveryDate = parsed.toDate();
             }
 
-            // 👤 Si tiene un cliente asignado, completar sus datos desde DB
+            // 👤 Completar datos de cliente
             if (data.customer?.id) {
                 const rawId = String(data.customer.id).trim();
                 console.log(`${rawId}   ------ id del usuario`);
 
                 let user = null;
 
-                // Intento 1: por _id
                 try {
                     user = await User.findById(rawId).lean();
                 } catch (e) {
                     console.warn('⚠️ findById lanzó error:', e.message);
                 }
 
-                // Intento 2 (fallback): por email enviado desde el front
                 if (!user && data.customer?.email) {
                     try {
                         user = await User.findOne({ email: data.customer.email }).lean();
@@ -142,11 +148,10 @@ export default class StoreOrdersService {
                         address: user.address,
                         lat: user.lat,
                         lon: user.lon,
-                        notificationToken: user.token || '', // ✅
+                        notificationToken: user.token || '',
                     };
                 } else {
                     console.warn('⚠️ No se encontró User por id/email; se conserva lo enviado desde el front');
-                    // Mantén lo que vino del front (si no vino email, quedará vacío)
                     data.customer = {
                         id: rawId,
                         name: data.customer.name ?? '',
@@ -177,121 +182,6 @@ export default class StoreOrdersService {
         }
     };
 
-
-
-
-
-
-    // updateOrder = async (id, data) => {
-    //     try {
-    //         console.log('🧪 Ejecutando updateOrder con ID:', id);
-    //         console.log('🧪 Datos recibidos para actualizar:', data);
-
-    //         // 1️⃣ Obtener el pedido actual
-    //         const existingOrder = await Orders.findById(id);
-    //         if (!existingOrder) {
-    //             console.warn('⚠️ Pedido no encontrado');
-    //             return { success: false, message: 'Pedido no encontrado' };
-    //         }
-
-    //         const previousStatus = existingOrder.status;
-    //         const newStatus = data.status;
-    //         const previousPaymentMethod = existingOrder.paymentMethod;
-    //         const newPaymentMethod = data.paymentMethod;
-
-    //         console.log(`🔄 Estado anterior: ${previousStatus} → Nuevo: ${newStatus}`);
-    //         console.log(`💳 Método de pago anterior: ${previousPaymentMethod} → Nuevo: ${newPaymentMethod}`);
-
-    //         // 2️⃣ Lógica para actualizar transferPay:
-    //         // 2️⃣ Lógica para actualizar transferPay:
-    //         // 2️⃣ Lógica para actualizar transferPay
-    //         console.log('🔍 Evaluando el campo transferPay...');
-
-    //         if (typeof data.transferPay !== 'undefined') {
-    //             console.log('🔧 transferPay recibido explícitamente, se mantiene:', data.transferPay);
-    //             // No hacemos nada, se respeta el valor recibido
-    //         } else {
-    //             // Si no vino transferPay, aplicar lógica automática como fallback
-    //             const finalPaymentMethod = data.paymentMethod || existingOrder.paymentMethod;
-    //             if (newStatus === 'entregado' && finalPaymentMethod === 'transferencia') {
-    //                 console.log('✅ Estado "entregado" y método de pago "transferencia", se establece transferPay en false');
-    //                 data.transferPay = false;
-    //             } else {
-    //                 console.log('❌ Estado no es "entregado" o método de pago no es "transferencia", se establece transferPay en true');
-    //                 data.transferPay = true;
-    //             }
-    //         }
-
-
-    //         // Log de los datos después de actualizar transferPay
-    //         console.log('📝 Datos después de la actualización de transferPay:', data);
-
-
-    //         // 3️⃣ Actualizar el pedido
-    //         const updated = await Orders.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true });
-
-    //         // 4️⃣ Si cambió el estado, enviar correo y notificación push
-    //         if (newStatus && newStatus !== previousStatus) {
-    //             const { name, email, notificationToken } = updated.customer || {};
-    //             console.log('👤 Cliente actualizado:', { name, email, notificationToken });
-
-    //             // Enviar correo
-    //             if (email) {
-    //                 try {
-    //                     console.log('📨 Enviando correo de estado actualizado...');
-    //                     await sendOrderStatusUpdateEmail({ name, email, status: newStatus });
-    //                     console.log('✅ Correo enviado con éxito');
-    //                 } catch (e) {
-    //                     console.error('❌ Error al enviar el correo:', e);
-    //                 }
-    //             } else {
-    //                 console.warn('⚠️ No se encontró email del cliente');
-    //             }
-
-    //             // Enviar notificación push
-    //             if (notificationToken) {
-    //                 try {
-    //                     console.log('📲 Enviando notificación push...');
-    //                     const response = await fetch('https://exp.host/--/api/v2/push/send', {
-    //                         method: 'POST',
-    //                         headers: {
-    //                             'Accept': 'application/json',
-    //                             'Accept-Encoding': 'gzip, deflate',
-    //                             'Content-Type': 'application/json',
-    //                         },
-    //                         body: JSON.stringify({
-    //                             to: notificationToken,
-    //                             sound: 'default',
-    //                             title: '📦 Estado actualizado',
-    //                             body: `Tu pedido está ahora: ${newStatus.replace('_', ' ')}`,
-    //                         }),
-    //                     });
-    //                     const result = await response.json();
-    //                     console.log('✅ Notificación enviada:', result);
-    //                 } catch (e) {
-    //                     console.error('❌ Error al enviar notificación push:', e);
-    //                 }
-    //             } else {
-    //                 console.warn('⚠️ No se encontró token de notificación del cliente');
-    //             }
-    //         }
-
-    //         return {
-    //             success: true,
-    //             message: 'Pedido actualizado correctamente',
-    //             data: updated
-    //         };
-    //     } catch (error) {
-    //         console.error('❌ Error al actualizar pedido:', error);
-    //         return {
-    //             success: false,
-    //             message: 'Error al actualizar pedido'
-    //         };
-    //     }
-    // };
-
-
-
     updateOrder = async (id, data) => {
         try {
             console.log('🧪 Ejecutando updateOrder con ID:', id);
@@ -312,35 +202,38 @@ export default class StoreOrdersService {
             console.log(`🔄 Estado anterior: ${previousStatus} → Nuevo: ${newStatus}`);
             console.log(`💳 Método de pago anterior: ${previousPaymentMethod} → Nuevo: ${newPaymentMethod}`);
 
-            // 2️⃣ Lógica para actualizar transferPay
-            console.log('🔍 Evaluando el campo transferPay...');
+            // ⏰ Normaliza deliveryDate si viene (a TZ Chile)
+            if (typeof data.deliveryDate !== 'undefined' && data.deliveryDate) {
+                const parsed = dayjs.tz(data.deliveryDate, TZ);
+                if (parsed.isValid()) data.deliveryDate = parsed.toDate();
+            }
 
+            // 2️⃣ Lógica transferPay (sin cambios de fondo)
+            console.log('🔍 Evaluando el campo transferPay...');
             if (typeof data.transferPay !== 'undefined') {
                 console.log('🔧 transferPay recibido explícitamente, se mantiene:', data.transferPay);
             } else {
                 const finalPaymentMethod = data.paymentMethod || existingOrder.paymentMethod;
                 if (newStatus === 'entregado' && finalPaymentMethod === 'transferencia') {
-                    console.log('✅ Estado "entregado" y método de pago "transferencia", se establece transferPay en false');
+                    console.log('✅ Estado "entregado" y método de pago "transferencia", transferPay=false');
                     data.transferPay = false;
                 } else {
-                    console.log('❌ Estado no es "entregado" o método de pago no es "transferencia", se establece transferPay en true');
+                    console.log('❌ No entregado o método no transferencia, transferPay=true');
                     data.transferPay = true;
                 }
             }
-
             console.log('📝 Datos después de la actualización de transferPay:', data);
 
-            // 3️⃣ Actualizar el pedido
+            // 3️⃣ Actualizar
             const updated = await Orders.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true });
 
-            // 4️⃣ Si cambió el estado, enviar notificaciones y guardar en DB
+            // 4️⃣ Notificaciones si cambió estado
             if (newStatus && newStatus !== previousStatus) {
                 const { name, email, notificationToken } = updated.customer || {};
                 const storeId = updated.storeId;
 
                 console.log('👤 Cliente actualizado:', { name, email, notificationToken });
 
-                // 📧 Enviar correo
                 if (email) {
                     try {
                         console.log('📨 Enviando correo de estado actualizado...');
@@ -353,7 +246,6 @@ export default class StoreOrdersService {
                     console.warn('⚠️ No se encontró email del cliente');
                 }
 
-                // 📲 Enviar notificación push
                 if (notificationToken) {
                     try {
                         console.log('📲 Enviando notificación push...');
@@ -380,7 +272,6 @@ export default class StoreOrdersService {
                     console.warn('⚠️ No se encontró token de notificación del cliente');
                 }
 
-                // 📝 Guardar en colección Notifications
                 if (storeId && email) {
                     try {
                         await Notifications.create({
@@ -412,12 +303,6 @@ export default class StoreOrdersService {
         }
     };
 
-
-
-
-
-
-
     deleteOrder = async (id) => {
         try {
             const deleted = await Orders.findByIdAndDelete(id);
@@ -437,19 +322,17 @@ export default class StoreOrdersService {
         }
     };
 
-    // Service (Backend) - Verificar que los datos se obtienen correctamente
+    // ⏰ Pedidos pendientes hasta hoy (fin de día en Chile)
     getPendingOrders = async ({ storeId }) => {
         const estadosExcluidos = ['entregado']; // Solo excluimos 'entregado'
-
         try {
-            const today = new Date();
-            today.setHours(23, 59, 59, 999); // Final de día
+            const endOfTodayChile = dayjs().tz(TZ).endOf('day').toDate();
 
             const query = {
                 storeId,
                 deliveryType: 'domicilio',
-                deliveryDate: { $lte: today }, // Solo pedidos hasta hoy
-                status: { $nin: estadosExcluidos }, // Excluir 'entregado'
+                deliveryDate: { $lte: endOfTodayChile },
+                status: { $nin: estadosExcluidos },
             };
 
             console.log("🔍 Consulta que se va a ejecutar:", query);
@@ -461,7 +344,7 @@ export default class StoreOrdersService {
             return {
                 success: true,
                 message: 'Pedidos hasta hoy obtenidos correctamente',
-                data: result, // Devuelve los resultados como un array de pedidos
+                data: result,
             };
         } catch (error) {
             console.error('❌ Error al obtener pedidos hasta hoy:', error);
@@ -471,6 +354,4 @@ export default class StoreOrdersService {
             };
         }
     };
-
-
 }

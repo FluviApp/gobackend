@@ -130,7 +130,7 @@ export const sendAdminNewOrderNotification = async ({ email, order }) => {
             <p><strong>Teléfono:</strong> ${customer?.phone || 'No informado'}</p>
             <p><strong>Dirección:</strong> ${customer?.address || 'No informado'}</p>
 
-            <p><strong>Tipo de entrega:</strong> ${deliveryType === 'delivery' ? '🚚 Delivery' : '🏃 Retiro'}</p>
+            <p><strong>Tipo de entrega:</strong> 🚚 Delivery</p>
             <p><strong>Fecha de entrega:</strong> ${formattedDate}${formattedHour ? ' — ' + formattedHour : ''}</p>
             <p><strong>Método de pago:</strong> ${paymentMethod || 'No informado'}</p>
             <p><strong>Origen:</strong> ${origin || 'App'}</p>

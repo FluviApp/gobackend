@@ -1,4 +1,4 @@
-// import getResendClient from '../libs/resend.js';
+import getResendClient from '../libs/resend.js';
 
 export const sendOrderConfirmationEmail = async ({ name, email, deliveryDate, deliverySchedule, password }) => {
     try {

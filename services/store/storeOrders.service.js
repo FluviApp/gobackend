@@ -110,14 +110,34 @@ export default class StoreOrdersService {
 
             // 👤 Si tiene un cliente asignado, completar sus datos desde DB
             if (data.customer?.id) {
+                const rawId = String(data.customer.id).trim();
+                console.log(`${rawId}   ------ id del usuario`);
 
-                const user = await User.findById(data.customer.id).lean();
-                console.log(data.customer.id + '   ------ id del usuario')
+                let user = null;
+
+                // Intento 1: por _id
+                try {
+                    user = await User.findById(rawId).lean();
+                } catch (e) {
+                    console.warn('⚠️ findById lanzó error:', e.message);
+                }
+
+                // Intento 2 (fallback): por email enviado desde el front
+                if (!user && data.customer?.email) {
+                    try {
+                        user = await User.findOne({ email: data.customer.email }).lean();
+                        if (user) console.log('🔎 Encontrado por email:', user.email);
+                    } catch (e) {
+                        console.warn('⚠️ findOne por email lanzó error:', e.message);
+                    }
+                }
+
                 if (user) {
+                    console.log(`${user.email}   ------ correo del usuario`);
                     data.customer = {
                         id: user._id,
                         name: user.name,
-                        email: user.email,
+                        email: user.email ?? '',
                         phone: user.phone,
                         address: user.address,
                         lat: user.lat,
@@ -126,16 +146,16 @@ export default class StoreOrdersService {
                     };
                 } else {
                     console.warn('⚠️ No se encontró User por id/email; se conserva lo enviado desde el front');
-                    // Mantén lo que vino del front para no perder el email
+                    // Mantén lo que vino del front (si no vino email, quedará vacío)
                     data.customer = {
-                        id: data.customer.id,
-                        name: data.customer.name || '',
-                        email: data.customer.email || '',
-                        phone: data.customer.phone || '',
-                        address: data.customer.address || '',
+                        id: rawId,
+                        name: data.customer.name ?? '',
+                        email: data.customer.email ?? '',
+                        phone: data.customer.phone ?? '',
+                        address: data.customer.address ?? '',
                         lat: data.customer.lat,
                         lon: data.customer.lon,
-                        notificationToken: data.customer.notificationToken || '',
+                        notificationToken: data.customer.notificationToken ?? '',
                     };
                 }
             }
@@ -156,6 +176,7 @@ export default class StoreOrdersService {
             };
         }
     };
+
 
 
 

@@ -12,7 +12,8 @@ export default class StoreOrdersController {
                 startDate,
                 endDate,
                 status,
-                transferPay
+                transferPay,
+                deliveryType
             } = req.query;
 
             console.log('🧪 Params recibidos:', req.query); // Verifica todos los params
@@ -24,7 +25,8 @@ export default class StoreOrdersController {
                 startDate,
                 endDate,
                 status,
-                transferPay
+                transferPay,
+                deliveryType
             });
 
             return res.status(response.success ? 200 : 400).json(response);

@@ -22,12 +22,22 @@ export default class StoreOrdersService {
         connectMongoDB();
     }
 
-    getAllOrders = async ({ storeId, page = 1, limit = 50, startDate, endDate, status, transferPay }) => {
+    getAllOrders = async ({
+        storeId,
+        page = 1,
+        limit = 50,
+        startDate,
+        endDate,
+        status,
+        transferPay,
+        deliveryType, // 👈 nuevo param
+    }) => {
         console.log('🧪 startDate:', startDate);
         console.log('🧪 endDate:', endDate);
         console.log('🧪 storeId:', storeId);
         console.log('🧪 status:', status);
         console.log('🧪 transferPay:', transferPay);
+        console.log('🧪 deliveryType:', deliveryType); // 👈 log adicional
 
         try {
             if (!storeId) {
@@ -37,7 +47,6 @@ export default class StoreOrdersService {
             const query = { storeId };
 
             // ⏰ Filtro por rango de fechas (deliveryDate) en hora de Chile
-            // Si vienen YYYY-MM-DD, interpretamos ese día en Chile y obtenemos su inicio/fin locales.
             if (startDate && endDate) {
                 const start = dayjs.tz(startDate, TZ).startOf('day').toDate();
                 const end = dayjs.tz(endDate, TZ).endOf('day').toDate();
@@ -49,9 +58,20 @@ export default class StoreOrdersService {
                 query.status = status;
             }
 
-            // Filtro por transferPay (string "true"/"false")
-            if (typeof transferPay !== 'undefined') {
-                query.transferPay = transferPay === 'true';
+            // Filtro por transferPay (acepta 'true'/'false' o boolean)
+            if (typeof transferPay !== 'undefined' && transferPay !== null && transferPay !== '') {
+                const tf = (typeof transferPay === 'string') ? transferPay === 'true' : !!transferPay;
+                query.transferPay = tf;
+            }
+
+            // ✅ Filtro por tipo de entrega (acepta ambas convenciones)
+            if (deliveryType) {
+                const dt = String(deliveryType).toLowerCase();
+                if (dt === 'domicilio' || dt === 'delivery') {
+                    query.deliveryType = { $in: ['domicilio', 'delivery'] };
+                } else if (dt === 'retiro' || dt === 'pickup') {
+                    query.deliveryType = { $in: ['retiro', 'pickup'] };
+                }
             }
 
             const options = {
@@ -75,6 +95,7 @@ export default class StoreOrdersService {
             };
         }
     };
+
 
     // ⏰ Helpers con TZ Chile
     getNextWeekdayDate(dayName, hourString) {

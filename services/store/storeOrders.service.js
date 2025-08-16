@@ -112,7 +112,7 @@ export default class StoreOrdersService {
             if (data.customer?.id) {
 
                 const user = await User.findById(data.customer.id).lean();
-                console.log(user.email + '   ------ correo del usuario')
+                console.log(data.customer.id + '   ------ id del usuario')
                 if (user) {
                     data.customer = {
                         id: user._id,
@@ -123,6 +123,19 @@ export default class StoreOrdersService {
                         lat: user.lat,
                         lon: user.lon,
                         notificationToken: user.token || '', // ✅
+                    };
+                } else {
+                    console.warn('⚠️ No se encontró User por id/email; se conserva lo enviado desde el front');
+                    // Mantén lo que vino del front para no perder el email
+                    data.customer = {
+                        id: data.customer.id,
+                        name: data.customer.name || '',
+                        email: data.customer.email || '',
+                        phone: data.customer.phone || '',
+                        address: data.customer.address || '',
+                        lat: data.customer.lat,
+                        lon: data.customer.lon,
+                        notificationToken: data.customer.notificationToken || '',
                     };
                 }
             }

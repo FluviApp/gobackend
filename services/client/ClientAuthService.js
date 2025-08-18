@@ -42,6 +42,7 @@ export default class ClientAuthService {
         }
     };
 
+    // service
     register = async (data) => {
         try {
             const {
@@ -49,26 +50,34 @@ export default class ClientAuthService {
                 email,
                 password,
                 address,
+                block,                 // 👈 ahora lo recibimos
                 lat,
                 lon,
                 phone,
                 storeId = 'default',
             } = data;
 
-            const exists = await Clients.findOne({ email: email.toLowerCase().trim() });
+            const normEmail = (email || '').toLowerCase().trim();
 
+            // Validaciones mínimas (opcional, ajusta a tu gusto)
+            if (!normEmail || !password || !address || !storeId) {
+                return { success: false, message: 'Faltan campos obligatorios' };
+            }
+
+            const exists = await Clients.findOne({ email: normEmail });
             if (exists) {
                 return { success: false, message: 'El correo ya está registrado' };
             }
 
             const newClient = new Clients({
-                name,
-                email: email.toLowerCase().trim(),
-                password,
-                address,
-                lat,
-                lon,
-                phone,
+                name: (name || '').trim(),
+                email: normEmail,
+                password, // ⚠️ considera hashear con bcrypt antes de guardar en producción
+                address: (address || '').trim(),
+                block: (block ?? '').toString().trim(), // 👈 guardamos block (opcional)
+                lat: typeof lat === 'string' ? parseFloat(lat) : lat,
+                lon: typeof lon === 'string' ? parseFloat(lon) : lon,
+                phone: (phone ?? '').toString().trim(),
                 storeId,
             });
 
@@ -77,8 +86,8 @@ export default class ClientAuthService {
             const clientData = newClient.toObject();
             delete clientData.password;
 
-            // ✅ Enviar correo de bienvenida
-            //await sendWelcomeEmail(clientData.email, clientData.name || 'Usuario');
+            // ✅ Enviar correo de bienvenida (si corresponde)
+            // await sendWelcomeEmail(clientData.email, clientData.name || 'Usuario');
 
             console.log('🧠 Cliente registrado:', clientData);
 
@@ -92,6 +101,7 @@ export default class ClientAuthService {
             return { success: false, message: 'Error al registrar cliente' };
         }
     };
+
 
     recoverPassword = async ({ email }) => {
         try {

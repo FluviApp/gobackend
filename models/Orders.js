@@ -47,6 +47,7 @@ const customerSchema = new Schema(
         email: { type: String },
         phone: { type: String },
         address: { type: String },
+        block: { type: String },
         lat: { type: Number },
         lon: { type: Number },
         observations: { type: String },

@@ -3,7 +3,7 @@ export default class ClientVersionService {
         console.log('🔧 Obteniendo versión mínima desde el service...');
 
         const data = {
-            minVersion: '3.0.3',
+            minVersion: '3.0.5',
             iosStoreUrl: 'https://apps.apple.com/app/idXXXXXXXXX',
             androidStoreUrl: 'https://play.google.com/store/apps/details?id=com.Fluvi.Go'
         };

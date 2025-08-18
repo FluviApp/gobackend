@@ -83,19 +83,21 @@ export default class ClientOrderService {
     }
 
 
-    async findOrCreateClient({ name, email, password, phone, address, lat, lon, storeId }) {
-        let user = await Clients.findOne({ email });
+    async findOrCreateClient({ name, email, password, phone, address, block, lat, lon, storeId }) {
+        const normEmail = (email || '').toLowerCase().trim();
+        let user = await Clients.findOne({ email: normEmail });
 
         if (!user) {
             const generatedPassword = password || 'fluvi-' + crypto.randomInt(1000, 9999);
 
             user = new Clients({
-                name,
-                email,
-                password: generatedPassword,
+                name: (name || '').trim(),
+                email: normEmail,
+                password: generatedPassword, // ⚠️ considera hashear con bcrypt en prod
                 storeId,
-                phone,
-                address,
+                phone: (phone || '').trim(),
+                address: (address || '').trim(),
+                block: (block || '').trim(),      // 👈 guardar block si viene
                 lat,
                 lon,
             });
@@ -105,10 +107,23 @@ export default class ClientOrderService {
 
             return { user, wasCreated: true, generatedPassword };
         } else {
+            // Actualiza datos “suaves” si llegan (sin pisar con vacío)
+            const updates = {};
+            if (address && address.trim()) updates.address = address.trim();
+            if (typeof block === 'string' && block.trim()) updates.block = block.trim(); // 👈 actualizar block si llega
+            if (lat != null) updates.lat = lat;
+            if (lon != null) updates.lon = lon;
+
+            if (Object.keys(updates).length) {
+                await Clients.updateOne({ _id: user._id }, { $set: updates });
+                user = await Clients.findById(user._id);
+            }
+
             console.log('✅ Usuario ya existía:', user._id);
             return { user, wasCreated: false };
         }
     }
+
 
 
 
@@ -224,25 +239,27 @@ export default class ClientOrderService {
                 data.deliveryDate = deliveryDate;
             }
 
-            // 👤 Buscar/crear usuario
+            // 👤 Buscar/crear usuario (incluye block)
             const { user, wasCreated, generatedPassword } = await this.findOrCreateClient({
                 name: data.customer.name,
                 email: data.customer.email,
                 password: data.customer.password,
                 phone: data.customer.phone,
                 address: data.customer.address,
+                block: data.customer.block,      // 👈 NUEVO
                 lat: data.customer.lat,
                 lon: data.customer.lon,
                 storeId: data.storeId,
             });
 
-            // 🔗 Copiar datos usuario al pedido
+            // 🔗 Copiar datos usuario al pedido (incluye block)
             data.customer = {
                 id: user._id,
                 name: user.name,
                 email: user.email,
                 phone: user.phone,
                 address: user.address,
+                block: user.block || '',           // 👈 NUEVO
                 lat: user.lat,
                 lon: user.lon,
                 notificationToken: user.token,
@@ -293,6 +310,7 @@ export default class ClientOrderService {
             return { success: false, message: 'No se pudo crear el pedido' };
         }
     }
+
 
 
 

@@ -21,7 +21,17 @@ export default class ClientAppStatusController {
     getStoreData = async (req, res) => {
         try {
             const { storeId } = req.params;
-            const response = await clientAppStatusService.getStoreData(storeId);
+            const { lat, lon } = req.query;
+
+            // Normaliza a número o null
+            const latNum = lat !== undefined ? Number(lat) : null;
+            const lonNum = lon !== undefined ? Number(lon) : null;
+
+            const response = await clientAppStatusService.getStoreData(storeId, {
+                lat: Number.isFinite(latNum) ? latNum : null,
+                lon: Number.isFinite(lonNum) ? lonNum : null,
+            });
+
             return res.status(response.success ? 200 : 404).json(response);
         } catch (error) {
             console.error('❌ Controller - Error al obtener datos de tienda:', error);
@@ -31,4 +41,5 @@ export default class ClientAppStatusController {
             });
         }
     };
+
 }

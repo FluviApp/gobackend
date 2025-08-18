@@ -4,7 +4,7 @@ export default class ClientVersionService {
 
         const data = {
             minVersion: '3.0.5',
-            iosStoreUrl: 'https://apps.apple.com/app/idXXXXXXXXX',
+            iosStoreUrl: 'https://apps.apple.com/cl/app/fluvi/id1486119050',
             androidStoreUrl: 'https://play.google.com/store/apps/details?id=com.Fluvi.Go'
         };
 

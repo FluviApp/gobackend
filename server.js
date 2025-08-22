@@ -47,7 +47,18 @@ dotenv.config();
 const app = express();
 
 // Middleware CORS
-app.use(cors());
+// app.use(cors());
+//PERMISO PARA CORS
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',');
+
+app.use(cors({
+    origin: (origin, callback) => {
+        if (!origin) return callback(null, true); // permite Postman/curl
+        if (allowedOrigins.includes(origin)) return callback(null, true);
+        return callback(new Error('CORS bloqueado'), false);
+    },
+    credentials: true, // <- clave si usas cookies/session
+}));
 
 // Middleware de subida de archivos (DEBE ir antes de express.json())
 app.use(fileUpload({

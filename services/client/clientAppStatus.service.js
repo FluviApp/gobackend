@@ -175,23 +175,23 @@ export default class ClientAppStatusService {
     // Asume que tienes importados tus modelos Stores, Zones y Order.
     // Asegúrate también de tener instalado luxon: npm i luxon
 
+    // Asegúrate de tener importados tus modelos: Stores, Zones, Order
+
+
     getStoreData = async (storeId, coords = {}) => {
         const TZ = 'America/Santiago';
-        const BLOCK_TODAY_THRESHOLD = 10; // bloquea el día completo desde 10 pedidos
+        const BLOCK_DAY_THRESHOLD = 10; // Topé por día
 
         try {
-            // --- Buscar tienda
+            // --- Tienda
             const store = await Stores.findOne({ _id: storeId }).lean();
-            if (!store) {
-                return { success: false, message: 'Tienda no encontrada' };
-            }
+            if (!store) return { success: false, message: 'Tienda no encontrada' };
 
-            // --- Zonas de entrega
+            // --- Zonas
             const zones = await Zones.find(
                 { storeId },
                 { deliveryCost: 1, schedule: 1, polygon: 1 }
             ).lean();
-
             if (!zones || zones.length === 0) {
                 return { success: false, message: 'Zonas de entrega no encontradas' };
             }
@@ -201,7 +201,7 @@ export default class ClientAppStatusService {
             const lonNum = coords?.lon != null ? Number(coords.lon) : null;
             const hasPoint = Number.isFinite(latNum) && Number.isFinite(lonNum);
 
-            // --- Punto en polígono (ray casting)
+            // --- Punto en polígono
             const zoneContainsPoint = (zone, plat, plon) => {
                 const poly = Array.isArray(zone?.polygon) ? zone.polygon : null;
                 if (!poly || poly.length < 3) return false;
@@ -209,10 +209,7 @@ export default class ClientAppStatusService {
                 for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
                     const xi = Number(poly[i]?.lng), yi = Number(poly[i]?.lat);
                     const xj = Number(poly[j]?.lng), yj = Number(poly[j]?.lat);
-                    if (
-                        !Number.isFinite(xi) || !Number.isFinite(yi) ||
-                        !Number.isFinite(xj) || !Number.isFinite(yj)
-                    ) continue;
+                    if (!Number.isFinite(xi) || !Number.isFinite(yi) || !Number.isFinite(xj) || !Number.isFinite(yj)) continue;
                     const intersect = ((yi > plat) !== (yj > plat)) &&
                         (plon < ((xj - xi) * (plat - yi)) / ((yj - yi) || 1e-12) + xi);
                     if (intersect) inside = !inside;
@@ -220,43 +217,65 @@ export default class ClientAppStatusService {
                 return inside;
             };
 
-            // --- Tiempo en Chile
+            // --- Tiempo (Chile)
             const nowCL = DateTime.now().setZone(TZ);
 
-            // --- Rango HOY (CLT) en UTC para Mongo
-            const todayStartUTC = nowCL.startOf('day').toUTC().toJSDate();
-            const todayEndUTC = nowCL.endOf('day').toUTC().toJSDate();
+            // --- Ventana de fechas a considerar para conteo (próximos 14 días)
+            const windowStartUTC = nowCL.startOf('day').toUTC().toJSDate();
+            const windowEndUTC = nowCL.plus({ days: 13 }).endOf('day').toUTC().toJSDate();
 
-            // --- Conteo pedidos HOY (¡OJO! storeId en Order es String)
+            // --- Importante: Order.storeId es String
             const storeIdStr = String(storeId);
-            const todayOrdersCount = await Order.countDocuments({
-                storeId: storeIdStr,
-                status: { $nin: ['cancelado', 'CANCELADO', 'cancelled'] },
-                deliveryDate: { $gte: todayStartUTC, $lte: todayEndUTC },
-            });
 
-            const shouldBlockToday = todayOrdersCount >= BLOCK_TODAY_THRESHOLD;
+            // --- Agregación: conteo por día LOCAL (Chile) de deliveryDate
+            // Usamos $dateToString con timezone para mayor compatibilidad
+            const perDayCounts = await Order.aggregate([
+                {
+                    $match: {
+                        storeId: storeIdStr,
+                        status: { $nin: ['cancelado', 'CANCELADO', 'cancelled'] },
+                        deliveryDate: { $gte: windowStartUTC, $lte: windowEndUTC },
+                    }
+                },
+                {
+                    $group: {
+                        _id: {
+                            $dateToString: {
+                                date: '$deliveryDate',
+                                format: '%Y-%m-%d',
+                                timezone: TZ,
+                            }
+                        },
+                        count: { $sum: 1 }
+                    }
+                },
+                { $project: { _id: 0, day: '$_id', count: 1 } }
+            ]);
 
-            // --- Helper normalizador de HH:mm
+            // --- Días bloqueados por tope
+            const blockedDaysSet = new Set(
+                perDayCounts.filter(d => d.count >= BLOCK_DAY_THRESHOLD).map(d => d.day)
+            );
+
+            // --- Helper: normaliza HH:mm (si te es útil; si quieres la clave original, usa rawKey)
             const toHHmm = (hh, mm) =>
                 `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 
-            // --- Filtrar próximos 4 días, manteniendo MISMO SHAPE (schedule)
+            // --- Filtrar próximos 4 días manteniendo MISMO SHAPE
             const filterSchedule = (schedule) => {
-                const daysOfWeek = [
-                    'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'
-                ];
+                const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
                 const filtered = {};
                 let foundDays = 0;
                 let offset = 0;
 
-                // Para HOY: ocultar hora actual y la siguiente
+                // Para hoy: ocultar hora actual y la siguiente
                 const currentHour = nowCL.hour;
                 const nextHour = (currentHour + 1) % 24;
 
                 while (foundDays < 4 && offset < 14) {
                     const dateCL = nowCL.plus({ days: offset }).startOf('day');
-                    const index = dateCL.weekday % 7; // Luxon 1..7 -> 0..6
+                    const localDayKey = dateCL.toFormat('yyyy-LL-dd'); // clave YYYY-MM-DD en CL
+                    const index = dateCL.weekday % 7; // Luxon 1..7 -> 0..6 (Sun=0)
                     const dayKey = daysOfWeek[index];
                     const dayConfig = schedule?.[dayKey];
 
@@ -265,10 +284,10 @@ export default class ClientAppStatusService {
                         continue;
                     }
 
-                    // Si HOY alcanzó el tope, saltar el día completo
-                    if (offset === 0 && shouldBlockToday) {
+                    // --- Bloqueo por tope para este día (hoy o futuro)
+                    if (blockedDaysSet.has(localDayKey)) {
                         offset++;
-                        continue;
+                        continue; // salta completamente ese día
                     }
 
                     const validHours = {};
@@ -283,12 +302,13 @@ export default class ClientAppStatusService {
                         const slotCL = dateCL.set({ hour: hh, minute: mm, second: 0, millisecond: 0 });
 
                         if (offset === 0) {
-                            // Ocultar bloques de la hora actual y la siguiente
+                            // Oculta hora actual y la siguiente
                             if (hh === currentHour || hh === nextHour) continue;
-                            // No mostrar horas pasadas
+                            // Evita horarios ya pasados
                             if (slotCL <= nowCL) continue;
                         }
 
+                        // Si quieres conservar la clave original del horario, usa String(rawKey).trim()
                         validHours[toHHmm(hh, mm)] = true;
                     }
 
@@ -303,17 +323,18 @@ export default class ClientAppStatusService {
                 return filtered;
             };
 
-            // --- Si hay coordenadas, prioriza zona que contenga el punto (la más barata si hay varias)
+            // --- Si hay coordenadas, prioriza zona que contenga el punto
             let zonesToFormat = zones;
             if (hasPoint) {
                 const matches = zones.filter(z => zoneContainsPoint(z, latNum, lonNum));
                 if (matches.length > 0) {
+                    // Si no quieres desempatar por costo, usa zonesToFormat = [matches[0]];
                     matches.sort((a, b) => (a.deliveryCost ?? 0) - (b.deliveryCost ?? 0));
                     zonesToFormat = [matches[0]];
                 }
             }
 
-            // --- Formato final: cada zona con schedule filtrado
+            // --- Formato final
             const formattedZones = zonesToFormat.map(zone => ({
                 deliveryCost: zone.deliveryCost ?? 0,
                 schedule: filterSchedule(zone.schedule || {}),
@@ -325,15 +346,17 @@ export default class ClientAppStatusService {
                 data: {
                     paymentMethods: Array.isArray(store.paymentMethods)
                         ? store.paymentMethods
-                        : (store.paymentmethod ?? []), // fallback si tu campo es singular
-                    deliveryZones: formattedZones,
-                },
+                        : (store.paymentmethod ?? []),
+                    deliveryZones: formattedZones
+                }
             };
+
         } catch (error) {
             console.error('❌ Servicio - Error al obtener datos de tienda:', error);
             return { success: false, message: 'Error inesperado al obtener datos de tienda' };
         }
     };
+
 
 
 

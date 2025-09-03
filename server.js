@@ -23,6 +23,7 @@ import StoreBannersRoutes from './routes/store/storeBannersRoute.js';
 import StoreNotificationsRoutes from './routes/store/storeNotificationsRoute.js';
 import StorePacksRoutes from './routes/store/storePacksRoute.js';
 import StoreDiscountCodesRoutes from './routes/store/storeDiscountCodesRoute.js';
+import StoreInfoRoutes from './routes/store/storeInfo.routes.js';
 
 //CLIENTE
 import ClientAppStatusRoutes from './routes/client/ClientAppStatusRoutes.js';
@@ -92,6 +93,7 @@ app.use('/api/store', StoreBannersRoutes);
 app.use('/api/store', StoreNotificationsRoutes);
 app.use('/api/store', StorePacksRoutes);
 app.use('/api/store', StoreDiscountCodesRoutes);
+app.use('/api/store', StoreInfoRoutes);
 
 
 // Rutas del cliente

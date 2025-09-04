@@ -1,6 +1,6 @@
 import { DateTime } from 'luxon';
 import connectMongoDB from '../../libs/mongoose.js';
-import Order from '../../models/Orders.js';
+import Order from '../../models/Order.js'; // <-- ajusta esta ruta/archivo si es distinto
 
 const TZ = 'America/Santiago';
 
@@ -28,7 +28,8 @@ export default class StoreTransfersService {
             const storeIdStr = String(storeId);
             const method = (paymentMethod && String(paymentMethod).trim()) || 'transferencia';
 
-            const pipeline = [
+            // 👉 Devolvemos CADA pedido (no agregados)
+            const orders = await Order.aggregate([
                 {
                     $match: {
                         storeId: storeIdStr,
@@ -39,43 +40,58 @@ export default class StoreTransfersService {
                 },
                 {
                     $project: {
+                        orderId: '$_id',
+                        deliveryDate: 1,
+                        // Fecha y hora locales derivadas de deliveryDate (para mostrar en tabla)
+                        day: { $dateToString: { date: '$deliveryDate', format: '%Y-%m-%d', timezone: TZ } },
+                        time: { $dateToString: { date: '$deliveryDate', format: '%H:%M', timezone: TZ } },
+
+                        // Monto
                         finalPrice: { $ifNull: ['$finalPrice', 0] },
-                        day: { $dateToString: { date: '$deliveryDate', format: '%Y-%m-%d', timezone: TZ } }
+
+                        // Info útil para la tabla
+                        paymentMethod: 1,
+                        status: 1,
+                        origin: 1,
+                        deliveryType: 1,
+                        deliveryHour: '$deliverySchedule.hour',
+
+                        customer: {
+                            name: '$customer.name',
+                            phone: '$customer.phone',
+                            address: '$customer.address',
+                            block: { $ifNull: ['$customer.block', '$customer.deptoblock'] },
+                        },
+                        deliveryPerson: '$deliveryPerson.name',
                     }
                 },
-                {
-                    $facet: {
-                        rows: [
-                            { $group: { _id: '$day', count: { $sum: 1 }, totalCLP: { $sum: '$finalPrice' } } },
-                            { $project: { _id: 0, day: '$_id', count: 1, totalCLP: 1 } },
-                            { $sort: { day: 1 } }
-                        ],
-                        totals: [
-                            { $group: { _id: null, count: { $sum: 1 }, totalCLP: { $sum: '$finalPrice' } } },
-                            { $project: { _id: 0, count: 1, totalCLP: 1 } }
-                        ]
-                    }
-                }
-            ];
+                { $sort: { day: 1, time: 1, orderId: 1 } }
+            ]);
 
-            const [agg] = await Order.aggregate(pipeline);
-            const rows = agg?.rows ?? [];
-            const totals = agg?.totals?.[0] ?? { count: 0, totalCLP: 0 };
+            // Totales (por si te sirven para un footer)
+            const totals = orders.reduce(
+                (acc, o) => {
+                    acc.count += 1;
+                    acc.totalCLP += Number(o.finalPrice || 0);
+                    return acc;
+                },
+                { count: 0, totalCLP: 0 }
+            );
 
             return {
                 success: true,
-                message: 'Reporte transfersmonth generado correctamente',
+                message: 'Listado de pedidos generado correctamente',
                 data: {
                     storeId: storeIdStr,
                     range: { startUTC, endUTC, timezone: TZ },
                     paymentMethod: method,
-                    rows,      // [{ day: '2025-09-04', count: 3, totalCLP: 15000 }, ...]
-                    totals,    // { count: X, totalCLP: Y }
+                    orders,   // 👈 aquí viene la lista ordenada por fecha/hora
+                    totals,   // opcional para footer
                 }
             };
         } catch (error) {
-            console.error('❌ Servicio - Error en transfersmonth:', error);
-            return { success: false, message: 'Error al generar transfersmonth' };
+            console.error('❌ Servicio - Error en transfersmonth (detalle):', error);
+            return { success: false, message: 'Error al generar transfersmonth (detalle)' };
         }
     }
 }

@@ -24,6 +24,7 @@ import StoreNotificationsRoutes from './routes/store/storeNotificationsRoute.js'
 import StorePacksRoutes from './routes/store/storePacksRoute.js';
 import StoreDiscountCodesRoutes from './routes/store/storeDiscountCodesRoute.js';
 import StoreInfoRoutes from './routes/store/storeInfo.routes.js';
+import StoreTransfersRoutes from './routes/store/storeTransfers.routes.js';
 
 //CLIENTE
 import ClientAppStatusRoutes from './routes/client/ClientAppStatusRoutes.js';
@@ -94,6 +95,7 @@ app.use('/api/store', StoreNotificationsRoutes);
 app.use('/api/store', StorePacksRoutes);
 app.use('/api/store', StoreDiscountCodesRoutes);
 app.use('/api/store', StoreInfoRoutes);
+app.use('/api/store', StoreTransfersRoutes);
 
 
 // Rutas del cliente

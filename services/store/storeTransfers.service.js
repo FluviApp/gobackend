@@ -1,6 +1,6 @@
 import { DateTime } from 'luxon';
 import connectMongoDB from '../../libs/mongoose.js';
-import Order from '../../models/Order.js';
+import Order from '../../models/Orders.js';
 
 const TZ = 'America/Santiago';
 

@@ -5,7 +5,9 @@ import Order from '../../models/Orders.js'; // <-- ajusta esta ruta/archivo si e
 const TZ = 'America/Santiago';
 
 export default class StoreTransfersService {
-    constructor() { connectMongoDB(); }
+    constructor() {
+        connectMongoDB();
+    }
 
     // Acepta 'YYYY-MM-DD' o 'DD/MM/YYYY'
     parseLocalDate(dateStr, endOfDay = false) {

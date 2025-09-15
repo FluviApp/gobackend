@@ -180,7 +180,7 @@ export default class ClientAppStatusService {
 
     getStoreData = async (storeId, coords = {}) => {
         const TZ = 'America/Santiago';
-        const BLOCK_DAY_THRESHOLD = 10; // Topé por día
+        const BLOCK_DAY_THRESHOLD = 15; // Topé por día
 
         try {
             // --- Tienda

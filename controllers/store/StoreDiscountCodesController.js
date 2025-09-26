@@ -1,5 +1,5 @@
 // src/controllers/store/StoreDiscountCodesController.js
-import StoreDiscountCodesService from '../../services/store/StoreDiscountCodes.service.js';
+import StoreDiscountCodesService from '../../services/store/storeDiscountCodes.service.js';
 
 const storeDiscountCodesService = new StoreDiscountCodesService();
 

@@ -1,16 +1,9 @@
-// services/store/StoreOrdersByMonth.service.js
+// services/store/StoreOrdersByDeliveredMonth.service.js
 import { DateTime } from 'luxon';
-import mongoose from 'mongoose';
 import connectMongoDB from '../../libs/mongoose.js';
 import Order from '../../models/Orders.js';
 
 const TZ = 'America/Santiago';
-const { ObjectId } = mongoose.Types;
-
-function castStoreIdFlexible(id) {
-    const s = String(id);
-    return ObjectId.isValid(s) ? { $in: [new ObjectId(s), s] } : s;
-}
 
 function parseLocalToUTC(dateStr, endOfDay = false) {
     if (!dateStr) return null;
@@ -21,67 +14,40 @@ function parseLocalToUTC(dateStr, endOfDay = false) {
     return dt.toUTC().toJSDate();
 }
 
-// fin de mes inclusivo: inicio del mes siguiente en CL - 1ms
-function monthEndInclusive(dtCL) {
-    const startNext = dtCL.plus({ months: 1 }).startOf('month');
-    return startNext.minus({ milliseconds: 1 }).toUTC().toJSDate();
-}
-
-export default class StoreOrdersByMonthService {
+export default class StoreOrdersByDeliveredMonthService {
     constructor() { connectMongoDB(); }
 
     /**
-     * Lista TODAS las órdenes del MES para un storeId.
-     * Params:
-     *  - storeId (req)
-     *  - startDate/endDate (opcional, 'YYYY-MM-DD' o 'DD/MM/YYYY')
-     *  - dateField (opcional) => 'createdAt' | 'deliveryDate' | 'deliveredAt' (default: 'createdAt')
+     * Lista TODAS las órdenes del MES por deliveredAt.
+     * - storeId (req, string)
+     * - startDate/endDate (opt, 'YYYY-MM-DD' o 'DD/MM/YYYY')
+     *   si no vienen → mes actual en America/Santiago
      */
-    async listByStoreMonth({ storeId, startDate, endDate, dateField = 'createdAt' }) {
+    async listByDeliveredMonth({ storeId, startDate, endDate }) {
         try {
             if (!storeId) return { success: false, message: 'storeId es requerido' };
 
             const nowCL = DateTime.now().setZone(TZ);
             const startUTC = parseLocalToUTC(startDate, false) ?? nowCL.startOf('month').toUTC().toJSDate();
-            const endUTC = parseLocalToUTC(endDate, true) ?? monthEndInclusive(nowCL);
+            const endUTC = parseLocalToUTC(endDate, true) ?? nowCL.endOf('month').toUTC().toJSDate();
 
             if (startUTC > endUTC) {
                 return { success: false, message: 'Rango inválido: startDate > endDate' };
             }
 
-            const storeFilter = castStoreIdFlexible(storeId);
-
             const query = {
-                storeId: storeFilter,
-                [dateField]: { $gte: startUTC, $lte: endUTC },
+                storeId: String(storeId),                 // tu schema: String
+                deliveredAt: { $gte: startUTC, $lte: endUTC },
             };
 
             const orders = await Order.find(query)
-                .sort({ [dateField]: 1, _id: 1 })
-                .select({
-                    _id: 1,
-                    storeId: 1,
-                    origin: 1,
-                    paymentMethod: 1,
-                    transferPay: 1,
-                    status: 1,
-                    deliveryType: 1,
-                    finalPrice: 1,
-                    price: 1,
-                    products: 1,
-                    customer: 1,
-                    deliveryPerson: 1,
-                    deliveryDate: 1,
-                    deliveredAt: 1,
-                    createdAt: 1,
-                    updatedAt: 1,
-                })
+                .sort({ deliveredAt: 1, _id: 1 })
                 .lean();
 
             const totals = orders.reduce(
                 (acc, o) => {
                     acc.count += 1;
-                    acc.totalCLP += Number(o?.finalPrice ?? o?.price ?? 0);
+                    acc.totalCLP += Number(o.finalPrice ?? o.price ?? 0);
                     return acc;
                 },
                 { count: 0, totalCLP: 0 }
@@ -89,18 +55,18 @@ export default class StoreOrdersByMonthService {
 
             return {
                 success: true,
-                message: 'Órdenes del mes listadas correctamente',
+                message: 'Órdenes por deliveredAt del mes listadas correctamente',
                 data: {
                     storeId: String(storeId),
-                    dateField,
                     range: { startUTC, endUTC, timezone: TZ },
+                    dateField: 'deliveredAt',
                     orders,
                     totals,
-                }
+                },
             };
-        } catch (err) {
-            console.error('❌ listByStoreMonth error:', err);
-            return { success: false, message: 'Error al listar órdenes del mes por storeId' };
+        } catch (e) {
+            console.error('❌ listByDeliveredMonth:', e);
+            return { success: false, message: 'Error al listar órdenes por deliveredAt', error: String(e?.message || e) };
         }
     }
 }

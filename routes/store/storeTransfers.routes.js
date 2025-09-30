@@ -1,11 +1,13 @@
-// routes/store/storeOrdersByDeliveredMonthRoute.js
 import express from 'express';
-import StoreOrdersByDeliveredMonthController from '../../controllers/store/storeOrdersByDeliveredMonthController.js';
+import StoreTransfersController from '../../controllers/store/storeTransfersController.js';
 
 const router = express.Router();
-const ctrl = new StoreOrdersByDeliveredMonthController();
+const storeTransfersController = new StoreTransfersController();
 
-// GET /api/store/ordersbymonth-delivered?storeId=... [&startDate=YYYY-MM-DD&endDate=YYYY-MM-DD]
-router.get('/ordersbymonth-delivered', ctrl.list);
+// EXISTENTE: /api/store/transfersmonth
+router.get('/transfersmonth', storeTransfersController.getTransfersMonth);
+
+// NUEVO: /api/store/ordersbymonth-delivered  (usa deliveredAt)
+router.get('/ordersbymonth-delivered', storeTransfersController.listByDeliveredMonth);
 
 export default router;

@@ -10,7 +10,7 @@ const { ObjectId } = mongoose.Types;
 export default class StoreTransfersService {
     constructor() { connectMongoDB(); }
 
-    // Acepta 'YYYY-MM-DD' o 'DD/MM/YYYY'; respeta TZ y convierte a UTC
+    // 'YYYY-MM-DD' o 'DD/MM/YYYY' -> Date UTC respetando TZ y DST
     toUTC(dateStr, endOfDay = false) {
         if (!dateStr) return null;
         let dt = DateTime.fromISO(dateStr, { zone: TZ });
@@ -25,20 +25,27 @@ export default class StoreTransfersService {
         return ObjectId.isValid(s) ? new ObjectId(s) : s;
     }
 
-    /**
-     * Todos los pedidos del mes con pago por transferencia.
-     * Si no envías fechas, usa el mes actual (TZ America/Santiago).
-     * Params:
-     *  - storeId (obligatorio)
-     *  - startDate/endDate (opcional 'YYYY-MM-DD' o 'DD/MM/YYYY')
-     */
+    // 🔥 Fix borde fin de mes: start(1/oct) - 1ms en TZ
+    monthEndInclusive({ year, month }) {
+        const startNext = DateTime.fromObject({ year, month, day: 1 }, { zone: TZ })
+            .plus({ months: 1 })
+            .startOf('month');
+        return startNext.minus({ milliseconds: 1 }).toUTC().toJSDate();
+    }
+
     async getTransfersMonth({ storeId, startDate, endDate }) {
         try {
             if (!storeId) return { success: false, message: 'storeId es requerido' };
 
             const nowCL = DateTime.now().setZone(TZ);
-            const startUTC = this.toUTC(startDate, false) ?? nowCL.startOf('month').toUTC().toJSDate();
-            const endUTC = this.toUTC(endDate, true) ?? nowCL.endOf('month').toUTC().toJSDate();
+            const startUTC =
+                this.toUTC(startDate, false) ??
+                nowCL.startOf('month').toUTC().toJSDate();
+
+            // si no viene endDate, usamos “inicio del 1/mes siguiente - 1ms”
+            const endUTC =
+                this.toUTC(endDate, true) ??
+                this.monthEndInclusive({ year: nowCL.year, month: nowCL.month });
 
             if (startUTC > endUTC) {
                 return { success: false, message: 'El rango de fechas es inválido (start > end)' };
@@ -46,29 +53,52 @@ export default class StoreTransfersService {
 
             const storeIdFilter = this.castStoreId(storeId);
 
-            // Solo transferencia (case-insensitive exacta)
-            const paymentMethodFilter = { $regex: /^transferencia$/i };
+            // ✅ Cualquier indicador de transferencia
+            const transferFilter = {
+                $or: [
+                    { paymentMethod: { $regex: /^transferencia$/i } },
+                    { transferPay: true },
+                ]
+            };
 
+            // ✅ Usar la fecha que exista (deliveryDate || createdAt || deliveredAt)
+            const dateWindow = { $gte: startUTC, $lte: endUTC };
+            const dateFilter = {
+                $or: [
+                    { deliveryDate: dateWindow },
+                    { createdAt: dateWindow },
+                    { deliveredAt: dateWindow },
+                ]
+            };
+
+            // Excluimos cancelados, el resto entra (incluye 'entregado')
             const match = {
                 storeId: storeIdFilter,
-                paymentMethod: paymentMethodFilter,
                 status: { $nin: ['cancelado', 'CANCELADO', 'cancelled', 'CANCELED'] },
-                $or: [
-                    { deliveryDate: { $gte: startUTC, $lte: endUTC } },
-                    { createdAt: { $gte: startUTC, $lte: endUTC } },
-                ],
+                ...transferFilter,
+                ...dateFilter,
             };
 
             const pipeline = [
                 { $match: match },
                 {
+                    $addFields: {
+                        _baseDate: {
+                            $ifNull: ['$deliveryDate',
+                                { $ifNull: ['$createdAt', '$deliveredAt'] }
+                            ]
+                        }
+                    }
+                },
+                {
                     $project: {
                         orderId: '$_id',
-                        baseDate: { $ifNull: ['$deliveryDate', '$createdAt'] },
-                        day: { $dateToString: { date: { $ifNull: ['$deliveryDate', '$createdAt'] }, format: '%Y-%m-%d', timezone: TZ } },
-                        time: { $dateToString: { date: { $ifNull: ['$deliveryDate', '$createdAt'] }, format: '%H:%M', timezone: TZ } },
+                        baseDate: '$_baseDate',
+                        day: { $dateToString: { date: '$_baseDate', format: '%Y-%m-%d', timezone: TZ } },
+                        time: { $dateToString: { date: '$_baseDate', format: '%H:%M', timezone: TZ } },
                         finalPrice: { $ifNull: ['$finalPrice', 0] },
                         paymentMethod: 1,
+                        transferPay: 1,
                         status: 1,
                         origin: 1,
                         deliveryType: 1,
@@ -82,6 +112,7 @@ export default class StoreTransfersService {
                         deliveryPerson: '$deliveryPerson.name',
                         deliveryDate: 1,
                         createdAt: 1,
+                        deliveredAt: 1,
                     }
                 },
                 { $sort: { day: 1, time: 1, orderId: 1 } }

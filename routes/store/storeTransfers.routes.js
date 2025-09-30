@@ -1,10 +1,11 @@
+// routes/store/storeOrdersByMonthRoute.js
 import express from 'express';
-import StoreTransfersController from '../../controllers/store/storeTransfersController.js';
+import StoreOrdersByMonthController from '../../controllers/store/storeOrdersByMonthController.js';
 
 const router = express.Router();
-const storeTransfersController = new StoreTransfersController();
+const ctrl = new StoreOrdersByMonthController();
 
-// GET /api/store/transfersmonth?storeId=...&startDate=...&endDate=...&paymentMethod=transferencia
-router.get('/transfersmonth', storeTransfersController.getTransfersMonth);
+// GET /api/store/ordersbymonth?storeId=...&startDate=...&endDate=...&dateField=createdAt|deliveryDate|deliveredAt
+router.get('/ordersbymonth', ctrl.list);
 
 export default router;

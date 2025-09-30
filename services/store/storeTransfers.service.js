@@ -1,16 +1,17 @@
+// Services/store/StoreTransfers.service.js
 import { DateTime } from 'luxon';
+import mongoose from 'mongoose';
 import connectMongoDB from '../../libs/mongoose.js';
-import Order from '../../models/Orders.js'; // <-- ajusta esta ruta/archivo si es distinto
+import Order from '../../models/Orders.js';
 
 const TZ = 'America/Santiago';
+const { ObjectId } = mongoose.Types;
 
 export default class StoreTransfersService {
-    constructor() {
-        connectMongoDB();
-    }
+    constructor() { connectMongoDB(); }
 
-    // Acepta 'YYYY-MM-DD' o 'DD/MM/YYYY'
-    parseLocalDate(dateStr, endOfDay = false) {
+    // Acepta 'YYYY-MM-DD' o 'DD/MM/YYYY'; respeta TZ y convierte a UTC
+    toUTC(dateStr, endOfDay = false) {
         if (!dateStr) return null;
         let dt = DateTime.fromISO(dateStr, { zone: TZ });
         if (!dt.isValid) dt = DateTime.fromFormat(dateStr, 'dd/MM/yyyy', { zone: TZ });
@@ -19,45 +20,59 @@ export default class StoreTransfersService {
         return dt.toUTC().toJSDate();
     }
 
-    async getTransfersMonth({ storeId, startDate, endDate, paymentMethod }) {
+    castStoreId(storeId) {
+        const s = String(storeId);
+        return ObjectId.isValid(s) ? new ObjectId(s) : s;
+    }
+
+    /**
+     * Todos los pedidos del mes con pago por transferencia.
+     * Si no envías fechas, usa el mes actual (TZ America/Santiago).
+     * Params:
+     *  - storeId (obligatorio)
+     *  - startDate/endDate (opcional 'YYYY-MM-DD' o 'DD/MM/YYYY')
+     */
+    async getTransfersMonth({ storeId, startDate, endDate }) {
         try {
             if (!storeId) return { success: false, message: 'storeId es requerido' };
 
             const nowCL = DateTime.now().setZone(TZ);
-            const startUTC = this.parseLocalDate(startDate, false) ?? nowCL.startOf('month').toUTC().toJSDate();
-            const endUTC = this.parseLocalDate(endDate, true) ?? nowCL.endOf('month').toUTC().toJSDate();
+            const startUTC = this.toUTC(startDate, false) ?? nowCL.startOf('month').toUTC().toJSDate();
+            const endUTC = this.toUTC(endDate, true) ?? nowCL.endOf('month').toUTC().toJSDate();
 
-            const storeIdStr = String(storeId);
-            const method = (paymentMethod && String(paymentMethod).trim()) || 'transferencia';
+            if (startUTC > endUTC) {
+                return { success: false, message: 'El rango de fechas es inválido (start > end)' };
+            }
 
-            // 👉 Devolvemos CADA pedido (no agregados)
-            const orders = await Order.aggregate([
-                {
-                    $match: {
-                        storeId: storeIdStr,
-                        status: { $nin: ['cancelado', 'CANCELADO', 'cancelled'] },
-                        deliveryDate: { $gte: startUTC, $lte: endUTC },
-                        paymentMethod: method,
-                    }
-                },
+            const storeIdFilter = this.castStoreId(storeId);
+
+            // Solo transferencia (case-insensitive exacta)
+            const paymentMethodFilter = { $regex: /^transferencia$/i };
+
+            const match = {
+                storeId: storeIdFilter,
+                paymentMethod: paymentMethodFilter,
+                status: { $nin: ['cancelado', 'CANCELADO', 'cancelled', 'CANCELED'] },
+                $or: [
+                    { deliveryDate: { $gte: startUTC, $lte: endUTC } },
+                    { createdAt: { $gte: startUTC, $lte: endUTC } },
+                ],
+            };
+
+            const pipeline = [
+                { $match: match },
                 {
                     $project: {
                         orderId: '$_id',
-                        deliveryDate: 1,
-                        // Fecha y hora locales derivadas de deliveryDate (para mostrar en tabla)
-                        day: { $dateToString: { date: '$deliveryDate', format: '%Y-%m-%d', timezone: TZ } },
-                        time: { $dateToString: { date: '$deliveryDate', format: '%H:%M', timezone: TZ } },
-
-                        // Monto
+                        baseDate: { $ifNull: ['$deliveryDate', '$createdAt'] },
+                        day: { $dateToString: { date: { $ifNull: ['$deliveryDate', '$createdAt'] }, format: '%Y-%m-%d', timezone: TZ } },
+                        time: { $dateToString: { date: { $ifNull: ['$deliveryDate', '$createdAt'] }, format: '%H:%M', timezone: TZ } },
                         finalPrice: { $ifNull: ['$finalPrice', 0] },
-
-                        // Info útil para la tabla
                         paymentMethod: 1,
                         status: 1,
                         origin: 1,
                         deliveryType: 1,
                         deliveryHour: '$deliverySchedule.hour',
-
                         customer: {
                             name: '$customer.name',
                             phone: '$customer.phone',
@@ -65,35 +80,34 @@ export default class StoreTransfersService {
                             block: { $ifNull: ['$customer.block', '$customer.deptoblock'] },
                         },
                         deliveryPerson: '$deliveryPerson.name',
+                        deliveryDate: 1,
+                        createdAt: 1,
                     }
                 },
                 { $sort: { day: 1, time: 1, orderId: 1 } }
-            ]);
+            ];
 
-            // Totales (por si te sirven para un footer)
+            const orders = await Order.aggregate(pipeline);
+
             const totals = orders.reduce(
-                (acc, o) => {
-                    acc.count += 1;
-                    acc.totalCLP += Number(o.finalPrice || 0);
-                    return acc;
-                },
+                (acc, o) => { acc.count += 1; acc.totalCLP += Number(o.finalPrice || 0); return acc; },
                 { count: 0, totalCLP: 0 }
             );
 
             return {
                 success: true,
-                message: 'Listado de pedidos generado correctamente',
+                message: 'Pedidos por transferencia del mes generados correctamente',
                 data: {
-                    storeId: storeIdStr,
+                    storeId: String(storeId),
                     range: { startUTC, endUTC, timezone: TZ },
-                    paymentMethod: method,
-                    orders,   // 👈 aquí viene la lista ordenada por fecha/hora
-                    totals,   // opcional para footer
+                    paymentMethod: 'transferencia',
+                    orders,
+                    totals,
                 }
             };
-        } catch (error) {
-            console.error('❌ Servicio - Error en transfersmonth (detalle):', error);
-            return { success: false, message: 'Error al generar transfersmonth (detalle)' };
+        } catch (err) {
+            console.error('❌ transfersmonth (transferencia):', err);
+            return { success: false, message: 'Error al obtener pedidos por transferencia del mes' };
         }
     }
 }

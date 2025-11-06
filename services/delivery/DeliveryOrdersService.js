@@ -20,34 +20,48 @@ export default class DeliveryOrdersService {
 
             console.log('📦 Buscando pedidos para tiendas:', allowedStores);
 
-            // Obtener la fecha de hoy
-            const today = new Date();
-            today.setHours(23, 59, 59, 999); // Establecer la hora al final del día para incluir todos los pedidos de hoy
+            const now = new Date();
 
-            // Construcción de la consulta con el filtro de fecha
+            // hoy al final del día (para el caso normal)
+            const endOfToday = new Date();
+            endOfToday.setHours(23, 59, 59, 999);
+
+            // consulta base
             const query = {
                 storeId: { $in: allowedStores },
                 status: { $nin: ['entregado', 'devuelto', 'cancelado'] },
-                deliveryDate: { $lte: today }, // Nuevo filtro: Fecha de entrega menor o igual a hoy
+                deliveryDate: { $lte: endOfToday },
             };
+
+            // 🕑 Si es antes de las 14:00, filtrar solo pedidos de hoy antes de las 14:00
+            if (now.getHours() < 14) {
+                const startOfToday = new Date();
+                startOfToday.setHours(0, 0, 0, 0);
+
+                const cutoff = new Date();
+                cutoff.setHours(14, 0, 0, 0);
+
+                query.deliveryDate = {
+                    $gte: startOfToday, // desde las 00:00 de hoy
+                    $lt: cutoff,        // hasta las 14:00
+                };
+
+                console.log('⏰ Antes de las 14:00 → solo pedidos de hoy antes de las 14:00');
+            } else {
+                console.log('🌇 Después de las 14:00 → se muestran los pedidos como siempre');
+            }
 
             console.log('🔍 Consulta Mongo:', JSON.stringify(query, null, 2));
 
-            // Buscar pedidos
             const orders = await Order.find(query).sort({ createdAt: -1 });
-
             console.log(`✅ Se encontraron ${orders.length} pedidos`);
 
-            // Obtener los storeIds únicos
             const storeIds = [...new Set(orders.map(order => order.storeId))];
-
-            // Buscar información de las tiendas
             const stores = await Stores.find(
                 { _id: { $in: storeIds } },
                 { name: 1, image: 1 }
             );
 
-            // Crear mapa para acceso rápido
             const storeMap = {};
             stores.forEach(store => {
                 storeMap[store._id.toString()] = {
@@ -56,7 +70,6 @@ export default class DeliveryOrdersService {
                 };
             });
 
-            // Agregar la info de la tienda a cada pedido
             const enrichedOrders = orders.map(order => ({
                 ...order.toObject(),
                 storeInfo: storeMap[order.storeId] || null,
@@ -68,6 +81,7 @@ export default class DeliveryOrdersService {
             throw error;
         }
     };
+
 
     // getClosedOrdersByStoreGroup = async () => {
     //     try {

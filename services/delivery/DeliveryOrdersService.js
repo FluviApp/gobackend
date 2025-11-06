@@ -21,42 +21,50 @@ export default class DeliveryOrdersService {
             console.log('📦 Buscando pedidos para tiendas:', allowedStores);
 
             const now = new Date();
+            const isBefore2PM = now.getHours() < 14;
 
-            // hoy al final del día (para el caso normal)
-            const endOfToday = new Date();
-            endOfToday.setHours(23, 59, 59, 999);
+            // Consulta base (sin filtro por hora)
+            const today = new Date();
+            today.setHours(23, 59, 59, 999);
 
-            // consulta base
             const query = {
                 storeId: { $in: allowedStores },
                 status: { $nin: ['entregado', 'devuelto', 'cancelado'] },
-                deliveryDate: { $lte: endOfToday },
+                deliveryDate: { $lte: today },
             };
-
-            // 🕑 Si es antes de las 14:00, filtrar solo pedidos de hoy antes de las 14:00
-            if (now.getHours() < 14) {
-                const startOfToday = new Date();
-                startOfToday.setHours(0, 0, 0, 0);
-
-                const cutoff = new Date();
-                cutoff.setHours(14, 0, 0, 0);
-
-                query.deliveryDate = {
-                    $gte: startOfToday, // desde las 00:00 de hoy
-                    $lt: cutoff,        // hasta las 14:00
-                };
-
-                console.log('⏰ Antes de las 14:00 → solo pedidos de hoy antes de las 14:00');
-            } else {
-                console.log('🌇 Después de las 14:00 → se muestran los pedidos como siempre');
-            }
 
             console.log('🔍 Consulta Mongo:', JSON.stringify(query, null, 2));
 
-            const orders = await Order.find(query).sort({ createdAt: -1 });
+            // Buscar pedidos
+            let orders = await Order.find(query).sort({ createdAt: -1 });
+
+            // 🕑 Si es antes de las 14:00 → filtrar por deliverySchedule.hour
+            if (isBefore2PM) {
+                console.log('⏰ Antes de las 14:00 → mostrando solo pedidos con hora antes de las 14:00');
+
+                const cutoffMinutes = 14 * 60; // 14:00 → 840 minutos
+
+                const parseHour = (hourStr) => {
+                    if (!hourStr) return 0;
+                    const [time, meridian] = hourStr.split(' ');
+                    let [h, m] = time.split(':').map(Number);
+                    if (meridian.toLowerCase() === 'pm' && h !== 12) h += 12;
+                    if (meridian.toLowerCase() === 'am' && h === 12) h = 0;
+                    return h * 60 + (m || 0); // minutos totales
+                };
+
+                orders = orders.filter(order => {
+                    const hourStr = order.deliverySchedule?.hour;
+                    return parseHour(hourStr) < cutoffMinutes;
+                });
+            } else {
+                console.log('🌇 Después de las 14:00 → mostrando todos los pedidos');
+            }
+
             console.log(`✅ Se encontraron ${orders.length} pedidos`);
 
-            const storeIds = [...new Set(orders.map(order => order.storeId))];
+            // Buscar info de las tiendas
+            const storeIds = [...new Set(orders.map(o => o.storeId))];
             const stores = await Stores.find(
                 { _id: { $in: storeIds } },
                 { name: 1, image: 1 }
@@ -81,6 +89,7 @@ export default class DeliveryOrdersService {
             throw error;
         }
     };
+
 
 
     // getClosedOrdersByStoreGroup = async () => {

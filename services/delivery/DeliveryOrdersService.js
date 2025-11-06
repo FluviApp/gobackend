@@ -23,7 +23,6 @@ export default class DeliveryOrdersService {
             const now = new Date();
             const isBefore2PM = now.getHours() < 14;
 
-            // Consulta base (sin filtro por hora)
             const today = new Date();
             today.setHours(23, 59, 59, 999);
 
@@ -35,22 +34,34 @@ export default class DeliveryOrdersService {
 
             console.log('🔍 Consulta Mongo:', JSON.stringify(query, null, 2));
 
-            // Buscar pedidos
             let orders = await Order.find(query).sort({ createdAt: -1 });
 
-            // 🕑 Si es antes de las 14:00 → filtrar por deliverySchedule.hour
+            // 🕑 Filtro por hora (solo antes de las 14:00)
             if (isBefore2PM) {
                 console.log('⏰ Antes de las 14:00 → mostrando solo pedidos con hora antes de las 14:00');
 
-                const cutoffMinutes = 14 * 60; // 14:00 → 840 minutos
+                const cutoffMinutes = 14 * 60; // 14:00 = 840 minutos
 
                 const parseHour = (hourStr) => {
                     if (!hourStr) return 0;
-                    const [time, meridian] = hourStr.split(' ');
-                    let [h, m] = time.split(':').map(Number);
-                    if (meridian.toLowerCase() === 'pm' && h !== 12) h += 12;
-                    if (meridian.toLowerCase() === 'am' && h === 12) h = 0;
-                    return h * 60 + (m || 0); // minutos totales
+                    let clean = hourStr.trim().toUpperCase();
+
+                    // Si tiene AM/PM → formato 12h
+                    const hasAM = clean.includes('AM');
+                    const hasPM = clean.includes('PM');
+
+                    // Limpieza de texto
+                    clean = clean.replace(/[^\d:]/g, '');
+
+                    let [h, m] = clean.split(':').map(Number);
+                    if (isNaN(h)) return 0;
+                    if (isNaN(m)) m = 0;
+
+                    if (hasPM && h !== 12) h += 12;
+                    if (hasAM && h === 12) h = 0;
+
+                    // Si no tiene AM/PM y es formato 24h → lo dejamos tal cual
+                    return h * 60 + m;
                 };
 
                 orders = orders.filter(order => {
@@ -63,7 +74,6 @@ export default class DeliveryOrdersService {
 
             console.log(`✅ Se encontraron ${orders.length} pedidos`);
 
-            // Buscar info de las tiendas
             const storeIds = [...new Set(orders.map(o => o.storeId))];
             const stores = await Stores.find(
                 { _id: { $in: storeIds } },
@@ -89,6 +99,7 @@ export default class DeliveryOrdersService {
             throw error;
         }
     };
+
 
 
 

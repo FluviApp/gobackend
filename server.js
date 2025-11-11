@@ -39,6 +39,7 @@ import ClientNotificationRoutes from './routes/client/ClientNotificationRoutes.j
 import ClientPacksRoutes from './routes/client/ClientPacksRoutes.js';
 import ClientZonesRoutes from './routes/client/ClientZonesRoutes.js';
 import PaymentRoutes from './routes/payment/PaymentRoutes.js'
+import MercadoPagoRoutes from './routes/payment/mercadopago.routes.js'
 
 //Delivery
 import DeliveryAuthRoutes from './routes/delivery/DeliveryAuthRoutes.js'
@@ -111,7 +112,8 @@ app.use('/api/client/subcategories', ClientSubcategoriesRoutes);
 app.use('/api/client/orders', ClientOrderRoutes);
 app.use('/api/client/notifications', ClientNotificationRoutes);
 app.use('/api/client/packs', ClientPacksRoutes);
-app.use('/api/payment', PaymentRoutes);
+app.use('/api/payment/webpay', PaymentRoutes); // Rutas de Webpay
+app.use('/api/payment/mercadopago', MercadoPagoRoutes); // Rutas de Mercado Pago
 
 
 //Rutas delivery

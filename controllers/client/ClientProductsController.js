@@ -6,7 +6,32 @@ export default class ClientProductsController {
 
     searchStoreProducts = async (req, res) => {
         try {
-            const { search = '', storeId } = req.query;
+            const {
+                q = '',
+                search = '',
+                storeId,
+                page = 1,
+                limit = 20,
+                categoryId,
+                subcategoryId,
+                priceMin,
+                priceMax,
+                available,
+                sort = 'relevance'
+            } = req.query;
+
+            console.log('📥 [ClientProductsController.search] query:', {
+                q: q || search,
+                storeId,
+                page,
+                limit,
+                categoryId,
+                subcategoryId,
+                priceMin,
+                priceMax,
+                available,
+                sort
+            });
 
             if (!storeId) {
                 return res.status(400).json({
@@ -15,9 +40,24 @@ export default class ClientProductsController {
                 });
             }
 
-            const response = await clientesProductsService.searchStoreProducts({
+            const response = await clientProductsService.searchStoreProducts({
                 storeId,
-                search
+                q: q || search,
+                page: parseInt(page, 10) || 1,
+                limit: Math.min(parseInt(limit, 10) || 20, 50),
+                categoryId,
+                subcategoryId,
+                priceMin: priceMin != null ? Number(priceMin) : undefined,
+                priceMax: priceMax != null ? Number(priceMax) : undefined,
+                available: typeof available === 'string' ? available === 'true' : undefined,
+                sort
+            });
+
+            console.log('✅ [ClientProductsController.search] response meta:', {
+                success: response?.success,
+                message: response?.message,
+                total: response?.data?.total,
+                count: response?.data?.items?.length,
             });
 
             return res.status(response.success ? 200 : 400).json(response);

@@ -62,6 +62,21 @@ const productSchema = new Schema(
     }
 );
 
+// Índices para búsqueda y rendimiento
+// Índice de texto para relevancia en nombre y detalle
+productSchema.index(
+    { name: 'text', detail: 'text' },
+    {
+        weights: { name: 5, detail: 1 },
+        name: 'ProductTextIndex',
+        default_language: 'spanish'
+    }
+);
+// Índices comunes usados en filtros/orden
+productSchema.index({ storeId: 1, available: 1 });
+productSchema.index({ storeId: 1, priceBase: 1 });
+productSchema.index({ storeId: 1, createdAt: -1 });
+
 productSchema.plugin(paginate);
 productSchema.plugin(aggregatePaginate);
 

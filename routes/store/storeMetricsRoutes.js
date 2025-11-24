@@ -18,6 +18,7 @@ router.get('/products/:storeId', controller.getTopProducts);
 
 // 📈 Tendencias de ventas
 router.get('/trends/:storeId', controller.getSalesTrend);
+router.get('/local-sales/:storeId', controller.getLocalSalesTrend);
 
 // 🕐 Métricas por hora
 router.get('/hourly/:storeId', controller.getHourlyMetrics);

@@ -427,6 +427,53 @@ class StoreMetricsService {
         }
     };
 
+    // 🏪 Tendencias de ventas en local
+    getLocalSalesTrend = async (storeId, period = '30d') => {
+        try {
+            const { startDate, endDate, groupBy } = this.getDateRangeWithGrouping(period);
+
+            const trendData = await Orders.aggregate([
+                {
+                    $match: {
+                        storeId: storeId,
+                        status: 'entregado',
+                        deliveryType: { $in: ['local', 'retiro', 'pickup', 'mostrador'] },
+                        deliveredAt: { $gte: startDate, $lte: endDate }
+                    }
+                },
+                {
+                    $group: {
+                        _id: groupBy,
+                        totalSales: { $sum: '$finalPrice' },
+                        orderCount: { $sum: 1 },
+                        uniqueCustomers: { $addToSet: '$customer.id' }
+                    }
+                },
+                {
+                    $project: {
+                        _id: 0,
+                        period: '$_id',
+                        totalSales: 1,
+                        orderCount: 1,
+                        uniqueCustomers: { $size: '$uniqueCustomers' }
+                    }
+                },
+                { $sort: { period: 1 } }
+            ]);
+
+            return {
+                success: true,
+                data: trendData
+            };
+        } catch (error) {
+            console.error('❌ Error en getLocalSalesTrend:', error);
+            return {
+                success: false,
+                message: 'Error al obtener tendencias de ventas en local'
+            };
+        }
+    };
+
     // 🕐 Métricas por hora del día
     getHourlyMetrics = async (storeId, period = '7d') => {
         try {

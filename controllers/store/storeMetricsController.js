@@ -123,6 +123,30 @@ export default class StoreMetricsController {
         }
     };
 
+    // 🏪 Tendencias de ventas en local
+    getLocalSalesTrend = async (req, res) => {
+        try {
+            const { storeId } = req.params;
+            const { period = '30d' } = req.query;
+
+            if (!storeId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'storeId es requerido'
+                });
+            }
+
+            const response = await service.getLocalSalesTrend(storeId, period);
+            return res.status(response.success ? 200 : 400).json(response);
+        } catch (error) {
+            console.error('❌ Error en getLocalSalesTrend controller:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Error al obtener tendencias de ventas en local'
+            });
+        }
+    };
+
     // 🕐 Métricas por hora
     getHourlyMetrics = async (req, res) => {
         try {

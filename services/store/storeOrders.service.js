@@ -51,7 +51,7 @@ export default class StoreOrdersService {
             if (startDate && endDate) {
                 const start = dayjs.tz(startDate, TZ).startOf('day').toDate();
                 const end = dayjs.tz(endDate, TZ).endOf('day').toDate();
-                
+
                 // Si hay filtro de deliveryType, ajustar la lógica
                 if (deliveryType) {
                     const dt = String(deliveryType).toLowerCase();
@@ -70,7 +70,7 @@ export default class StoreOrdersService {
                     // 2. Pedidos "local" (sin importar su deliveryDate)
                     // 3. Pedidos sin deliveryDate (por si acaso)
                     query.$or = [
-                        { 
+                        {
                             deliveryDate: { $gte: start, $lte: end },
                             deliveryType: { $nin: ['local', 'retiro', 'pickup', 'mostrador'] } // Solo aplicar filtro de fecha a no-local
                         },
@@ -113,7 +113,7 @@ export default class StoreOrdersService {
             console.log('🔍 Options:', options);
 
             const result = await Orders.paginate(query, options);
-            
+
             console.log('🔍 Resultado - Total docs:', result.docs?.length || 0);
             console.log('🔍 Resultado - Total count:', result.totalDocs || 0);
             if (result.docs && result.docs.length > 0) {
@@ -175,6 +175,15 @@ export default class StoreOrdersService {
                     data.deliveryType = 'local';
                 }
             }
+
+            // 🏪 Para pedidos tipo "local": establecer deliveredAt con hora chilena y status "entregado"
+            if (data.deliveryType === 'local') {
+                // Establecer deliveredAt con la hora actual en Chile
+                data.deliveredAt = dayjs().tz(TZ).toDate();
+                // Establecer status como "entregado" automáticamente
+                data.status = 'entregado';
+            }
+
             // ⏰ Calcular deliveryDate en Chile si no viene
             if ((!data.deliveryDate || data.deliveryDate === '') && data.deliverySchedule?.day && data.deliverySchedule?.hour) {
                 const deliveryDate = this.getNextWeekdayDate(data.deliverySchedule.day, data.deliverySchedule.hour);

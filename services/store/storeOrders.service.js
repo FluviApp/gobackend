@@ -69,8 +69,8 @@ export default class StoreOrdersService {
                 const dt = String(deliveryType).toLowerCase();
                 if (dt === 'domicilio' || dt === 'delivery') {
                     query.deliveryType = { $in: ['domicilio', 'delivery'] };
-                } else if (dt === 'retiro' || dt === 'pickup') {
-                    query.deliveryType = { $in: ['retiro', 'pickup'] };
+                } else if (dt === 'local' || dt === 'retiro' || dt === 'pickup' || dt === 'mostrador') {
+                    query.deliveryType = { $in: ['local', 'retiro', 'pickup', 'mostrador'] };
                 }
             }
 
@@ -126,6 +126,15 @@ export default class StoreOrdersService {
 
     createOrder = async (data) => {
         try {
+            // 🔄 Normalización de deliveryType
+            if (data?.deliveryType) {
+                const raw = String(data.deliveryType).toLowerCase();
+                if (raw === 'delivery' || raw === 'domicilio') {
+                    data.deliveryType = 'domicilio';
+                } else if (['local', 'retiro', 'pickup', 'mostrador'].includes(raw)) {
+                    data.deliveryType = 'local';
+                }
+            }
             // ⏰ Calcular deliveryDate en Chile si no viene
             if ((!data.deliveryDate || data.deliveryDate === '') && data.deliverySchedule?.day && data.deliverySchedule?.hour) {
                 const deliveryDate = this.getNextWeekdayDate(data.deliverySchedule.day, data.deliverySchedule.hour);

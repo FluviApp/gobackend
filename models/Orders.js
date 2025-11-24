@@ -117,7 +117,7 @@ const orderSchema = new Schema(
 
         deliveryType: {
             type: String,
-            enum: ['domicilio', 'retiro', 'mostrador'],
+            enum: ['domicilio', 'local', 'retiro', 'mostrador'],
             required: true,
         },
 

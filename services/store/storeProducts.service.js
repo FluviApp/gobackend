@@ -129,48 +129,222 @@ export default class StoreProductsService {
             .limit(Number(limit))
             .lean();
 
-        const normalizedProducts = products.map(p => ({
-            _id: p._id,
-            name: p.name,
-            priceBase: p.priceBase ?? p.price,
-            priceDiscount: p.priceDiscount,
-            isPack: false
-        }));
+        // Debug: verificar datos originales
+        if (products.length > 0) {
+            console.log('🔍 Primer producto original de BD:', {
+                _id: products[0]._id,
+                name: products[0].name,
+                images: products[0].images,
+                variants: products[0].variants?.map(v => ({ images: v.images }))
+            });
+        }
+        if (packs.length > 0) {
+            console.log('🔍 Primer pack original de BD:', {
+                _id: packs[0]._id,
+                name: packs[0].name,
+                image: packs[0].image
+            });
+        }
 
-        const normalizedPacks = packs.map(p => ({
-            _id: p._id,
-            name: `${p.name} (Pack)`,
-            priceBase: p.price,
-            priceDiscount: null,
-            isPack: true,
-            items: p.products
-        }));
+        const normalizedProducts = products.map(p => {
+            // Obtener imagen: primero de images generales, luego de variants[0].images
+            let productImage = null;
+            let allImages = [];
+            
+            // Primero intentar con images generales del producto
+            if (Array.isArray(p.images) && p.images.length > 0) {
+                const validImages = p.images.filter(img => img && String(img).trim() !== '');
+                if (validImages.length > 0) {
+                    productImage = validImages[0];
+                    allImages = validImages;
+                }
+            }
+            
+            // Si no hay imágenes generales, buscar en variants
+            if (!productImage && Array.isArray(p.variants) && p.variants.length > 0) {
+                const firstVariant = p.variants[0];
+                if (Array.isArray(firstVariant.images) && firstVariant.images.length > 0) {
+                    const validVariantImages = firstVariant.images.filter(img => img && String(img).trim() !== '');
+                    if (validVariantImages.length > 0) {
+                        productImage = validVariantImages[0];
+                        allImages = validVariantImages;
+                    }
+                }
+            }
+            
+            // Si aún no hay imagen, recopilar todas las imágenes de todas las variantes
+            if (allImages.length === 0 && Array.isArray(p.variants)) {
+                p.variants.forEach(v => {
+                    if (Array.isArray(v.images)) {
+                        const validImages = v.images.filter(img => img && String(img).trim() !== '');
+                        allImages.push(...validImages);
+                    }
+                });
+                if (allImages.length > 0 && !productImage) {
+                    productImage = allImages[0];
+                }
+            }
+            
+            const result = {
+                _id: p._id,
+                name: p.name,
+                priceBase: p.priceBase ?? p.price ?? 0,
+                priceDiscount: p.priceDiscount ?? 0,
+                image: productImage || null,
+                images: allImages.length > 0 ? allImages : (productImage ? [productImage] : []),
+                isPack: false
+            };
+            
+            // Debug: verificar que se está devolviendo
+            if (p._id === products[0]?._id) {
+                console.log('🔍 Producto normalizado result:', {
+                    _id: result._id,
+                    name: result.name,
+                    image: result.image,
+                    images: result.images,
+                    hasImage: !!result.image,
+                    hasImages: result.images?.length > 0
+                });
+            }
+            
+            return result;
+        });
 
-        return [...normalizedProducts, ...normalizedPacks];
+        const normalizedPacks = packs.map(p => {
+            const packImage = p.image || null;
+            const result = {
+                _id: p._id,
+                name: `${p.name} (Pack)`,
+                priceBase: p.price,
+                priceDiscount: null,
+                price: p.price,
+                image: packImage,
+                images: packImage ? [packImage] : [],
+                isPack: true,
+                items: p.products
+            };
+            
+            // Debug: verificar que se está devolviendo
+            if (p._id === packs[0]?._id) {
+                console.log('🔍 Pack normalizado result:', {
+                    _id: result._id,
+                    name: result.name,
+                    image: result.image,
+                    images: result.images,
+                    hasImage: !!result.image,
+                    originalImage: p.image
+                });
+            }
+            
+            return result;
+        });
+
+        // Debug: verificar que las imágenes se están devolviendo
+        if (normalizedProducts.length > 0) {
+            console.log('🔍 Primer producto normalizado:', {
+                _id: normalizedProducts[0]._id,
+                name: normalizedProducts[0].name,
+                image: normalizedProducts[0].image,
+                images: normalizedProducts[0].images,
+                hasImage: !!normalizedProducts[0].image,
+                hasImages: normalizedProducts[0].images?.length > 0
+            });
+        }
+        if (normalizedPacks.length > 0) {
+            console.log('🔍 Primer pack normalizado:', {
+                _id: normalizedPacks[0]._id,
+                name: normalizedPacks[0].name,
+                image: normalizedPacks[0].image,
+                images: normalizedPacks[0].images,
+                hasImage: !!normalizedPacks[0].image
+            });
+        }
+
+        const finalResult = [...normalizedProducts, ...normalizedPacks];
+        
+        // Debug final: verificar el resultado completo
+        console.log('🔍 Resultado final - Total items:', finalResult.length);
+        console.log('🔍 Primer item del resultado final:', finalResult[0] ? {
+            _id: finalResult[0]._id,
+            name: finalResult[0].name,
+            image: finalResult[0].image,
+            images: finalResult[0].images,
+            isPack: finalResult[0].isPack
+        } : 'No hay items');
+        
+        return finalResult;
     };
 
 
 
-    getAllProductsUnfiltered = async ({ storeId, search = '', page = 1, limit = 10 }) => {
+    getAllProductsUnfiltered = async ({ storeId, search = '', page = 1, limit = 50 }) => {
         try {
-            const query = { storeId };
+            const productQuery = { storeId };
+            const packQuery = { storeId };
 
             if (search) {
-                query.name = { $regex: new RegExp(search, 'i') }; // Búsqueda por nombre
+                productQuery.name = { $regex: new RegExp(search, 'i') };
+                packQuery.name = { $regex: new RegExp(search, 'i') };
             }
 
-            const options = {
-                page: parseInt(page, 10),
-                limit: parseInt(limit, 10),
-                sort: { createdAt: -1 },
-            };
+            // Obtener productos y packs en paralelo
+            const [productsResult, packsResult] = await Promise.all([
+                Product.find(productQuery).sort({ createdAt: -1 }).limit(parseInt(limit, 10)),
+                Packs.find(packQuery).sort({ createdAt: -1 }).limit(parseInt(limit, 10))
+            ]);
 
-            const result = await Product.paginate(query, options);
+            console.log('📦 Productos encontrados:', productsResult.length);
+            console.log('📦 Packs encontrados:', packsResult.length);
+            console.log('📦 StoreId usado:', storeId);
+            console.log('📦 Query de productos:', JSON.stringify(productQuery));
+            console.log('📦 Query de packs:', JSON.stringify(packQuery));
+            
+            // Verificar si hay packs en la base de datos para este storeId
+            const totalPacks = await Packs.countDocuments({ storeId });
+            console.log('📦 Total de packs en BD para este storeId:', totalPacks);
+            
+            if (packsResult.length > 0) {
+                console.log('📦 Primer pack encontrado:', JSON.stringify(packsResult[0].toObject(), null, 2));
+            }
+
+            // Combinar productos y packs, marcando packs con un tipo
+            const productsArray = productsResult.map(p => {
+                const obj = p.toObject();
+                return { ...obj, type: 'product' };
+            });
+            
+            const packsArray = packsResult.map(p => {
+                const obj = p.toObject();
+                // Asegurar que tenga _id
+                if (!obj._id && p._id) {
+                    obj._id = p._id.toString();
+                }
+                return { ...obj, type: 'pack' };
+            });
+            
+            const combined = [...productsArray, ...packsArray];
+
+            console.log('📦 Total combinado:', combined.length);
+            console.log('📦 Productos en combined:', productsArray.length);
+            console.log('📦 Packs en combined:', packsArray.length);
+            
+            // Verificar que los packs tengan el campo type
+            const packsWithType = combined.filter(p => p.type === 'pack');
+            console.log('📦 Packs con type="pack":', packsWithType.length);
+
+            // Ordenar por fecha de creación
+            combined.sort((a, b) => new Date(b.createdAt || b.createdAt) - new Date(a.createdAt || a.createdAt));
 
             return {
                 success: true,
-                message: 'Productos obtenidos correctamente',
-                data: result
+                message: 'Productos y packs obtenidos correctamente',
+                data: {
+                    docs: combined,
+                    totalDocs: combined.length,
+                    limit: parseInt(limit, 10),
+                    page: parseInt(page, 10),
+                    totalPages: 1
+                }
             };
         } catch (error) {
             console.error('❌ Servicio - Error al obtener productos sin filtro:', error);

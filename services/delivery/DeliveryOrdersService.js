@@ -30,6 +30,7 @@ export default class DeliveryOrdersService {
                 storeId: { $in: allowedStores },
                 status: { $nin: ['entregado', 'devuelto', 'cancelado'] },
                 deliveryDate: { $lte: today },
+                deliveryType: 'domicilio',
             };
 
             console.log('🔍 Consulta Mongo:', JSON.stringify(query, null, 2));
@@ -166,6 +167,7 @@ export default class DeliveryOrdersService {
                 storeId: { $in: allowedStores },
                 status: { $in: ['entregado', 'devuelto', 'cancelado'] },
                 deliveryDate: { $gte: startUtc, $lte: endUtc },
+                deliveryType: 'domicilio',
             };
 
             console.log('🔍 Consulta Mongo:', JSON.stringify(query, null, 2));

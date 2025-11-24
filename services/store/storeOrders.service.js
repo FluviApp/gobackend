@@ -105,11 +105,8 @@ export default class StoreOrdersService {
             const options = {
                 page: parseInt(page, 10),
                 limit: parseInt(limit, 10),
-                // Ordenar por createdAt si no hay deliveryDate (para pedidos local)
-                sort: [
-                    { deliveryDate: -1 },
-                    { createdAt: -1 }
-                ],
+                // Ordenar por deliveryDate descendente, luego por createdAt descendente
+                sort: { deliveryDate: -1, createdAt: -1 },
             };
 
             console.log('🔍 Query final para getAllOrders:', JSON.stringify(query, null, 2));

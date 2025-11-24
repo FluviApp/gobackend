@@ -48,23 +48,47 @@ export default class StoreOrdersService {
 
             // ⏰ Filtro por rango de fechas (deliveryDate) en hora de Chile
             // IMPORTANTE: Los pedidos "local" deben aparecer SIEMPRE, sin importar el filtro de fechas
-            // Porque son ventas en el local que pueden tener deliveryDate pero no deberían filtrarse por fecha
             if (startDate && endDate) {
                 const start = dayjs.tz(startDate, TZ).startOf('day').toDate();
                 const end = dayjs.tz(endDate, TZ).endOf('day').toDate();
-                // Incluir:
-                // 1. Pedidos con deliveryDate en el rango Y que NO sean "local"
-                // 2. Pedidos "local" (sin importar su deliveryDate)
-                // 3. Pedidos sin deliveryDate (por si acaso)
-                query.$or = [
-                    { 
-                        deliveryDate: { $gte: start, $lte: end },
-                        deliveryType: { $ne: 'local' } // Solo aplicar filtro de fecha a no-local
-                    },
-                    { deliveryType: 'local' }, // Siempre incluir pedidos local, sin importar deliveryDate
-                    { deliveryDate: { $exists: false } }, // Por si acaso hay pedidos sin deliveryDate
-                    { deliveryDate: null } // Por si acaso hay pedidos con deliveryDate null
-                ];
+                
+                // Si hay filtro de deliveryType, ajustar la lógica
+                if (deliveryType) {
+                    const dt = String(deliveryType).toLowerCase();
+                    // Si se está filtrando por "local", no aplicar filtro de fechas
+                    if (dt === 'local' || dt === 'retiro' || dt === 'pickup' || dt === 'mostrador') {
+                        // No aplicar filtro de fechas para pedidos local
+                        query.deliveryType = { $in: ['local', 'retiro', 'pickup', 'mostrador'] };
+                    } else {
+                        // Si se filtra por "domicilio", aplicar filtro de fechas normalmente
+                        query.deliveryType = { $in: ['domicilio', 'delivery'] };
+                        query.deliveryDate = { $gte: start, $lte: end };
+                    }
+                } else {
+                    // Si NO hay filtro de deliveryType, incluir:
+                    // 1. Pedidos con deliveryDate en el rango Y que NO sean "local"
+                    // 2. Pedidos "local" (sin importar su deliveryDate)
+                    // 3. Pedidos sin deliveryDate (por si acaso)
+                    query.$or = [
+                        { 
+                            deliveryDate: { $gte: start, $lte: end },
+                            deliveryType: { $nin: ['local', 'retiro', 'pickup', 'mostrador'] } // Solo aplicar filtro de fecha a no-local
+                        },
+                        { deliveryType: { $in: ['local', 'retiro', 'pickup', 'mostrador'] } }, // Siempre incluir pedidos local
+                        { deliveryDate: { $exists: false } }, // Por si acaso hay pedidos sin deliveryDate
+                        { deliveryDate: null } // Por si acaso hay pedidos con deliveryDate null
+                    ];
+                }
+            } else {
+                // Si NO hay filtro de fechas, aplicar solo el filtro de deliveryType si existe
+                if (deliveryType) {
+                    const dt = String(deliveryType).toLowerCase();
+                    if (dt === 'domicilio' || dt === 'delivery') {
+                        query.deliveryType = { $in: ['domicilio', 'delivery'] };
+                    } else if (dt === 'local' || dt === 'retiro' || dt === 'pickup' || dt === 'mostrador') {
+                        query.deliveryType = { $in: ['local', 'retiro', 'pickup', 'mostrador'] };
+                    }
+                }
             }
 
             // Filtro por estado
@@ -77,18 +101,6 @@ export default class StoreOrdersService {
                 const tf = (typeof transferPay === 'string') ? transferPay === 'true' : !!transferPay;
                 query.transferPay = tf;
             }
-
-            // ✅ Filtro por tipo de entrega (acepta ambas convenciones)
-            // IMPORTANTE: Si no se especifica deliveryType, traer TODOS (incluyendo local)
-            if (deliveryType) {
-                const dt = String(deliveryType).toLowerCase();
-                if (dt === 'domicilio' || dt === 'delivery') {
-                    query.deliveryType = { $in: ['domicilio', 'delivery'] };
-                } else if (dt === 'local' || dt === 'retiro' || dt === 'pickup' || dt === 'mostrador') {
-                    query.deliveryType = { $in: ['local', 'retiro', 'pickup', 'mostrador'] };
-                }
-            }
-            // Si NO hay filtro de deliveryType, NO agregar ningún filtro (traer todos)
 
             const options = {
                 page: parseInt(page, 10),

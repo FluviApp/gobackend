@@ -47,10 +47,24 @@ export default class StoreOrdersService {
             const query = { storeId };
 
             // ⏰ Filtro por rango de fechas (deliveryDate) en hora de Chile
+            // IMPORTANTE: Los pedidos "local" deben aparecer SIEMPRE, sin importar el filtro de fechas
+            // Porque son ventas en el local que pueden tener deliveryDate pero no deberían filtrarse por fecha
             if (startDate && endDate) {
                 const start = dayjs.tz(startDate, TZ).startOf('day').toDate();
                 const end = dayjs.tz(endDate, TZ).endOf('day').toDate();
-                query.deliveryDate = { $gte: start, $lte: end };
+                // Incluir:
+                // 1. Pedidos con deliveryDate en el rango Y que NO sean "local"
+                // 2. Pedidos "local" (sin importar su deliveryDate)
+                // 3. Pedidos sin deliveryDate (por si acaso)
+                query.$or = [
+                    { 
+                        deliveryDate: { $gte: start, $lte: end },
+                        deliveryType: { $ne: 'local' } // Solo aplicar filtro de fecha a no-local
+                    },
+                    { deliveryType: 'local' }, // Siempre incluir pedidos local, sin importar deliveryDate
+                    { deliveryDate: { $exists: false } }, // Por si acaso hay pedidos sin deliveryDate
+                    { deliveryDate: null } // Por si acaso hay pedidos con deliveryDate null
+                ];
             }
 
             // Filtro por estado
@@ -65,6 +79,7 @@ export default class StoreOrdersService {
             }
 
             // ✅ Filtro por tipo de entrega (acepta ambas convenciones)
+            // IMPORTANTE: Si no se especifica deliveryType, traer TODOS (incluyendo local)
             if (deliveryType) {
                 const dt = String(deliveryType).toLowerCase();
                 if (dt === 'domicilio' || dt === 'delivery') {
@@ -73,14 +88,30 @@ export default class StoreOrdersService {
                     query.deliveryType = { $in: ['local', 'retiro', 'pickup', 'mostrador'] };
                 }
             }
+            // Si NO hay filtro de deliveryType, NO agregar ningún filtro (traer todos)
 
             const options = {
                 page: parseInt(page, 10),
                 limit: parseInt(limit, 10),
-                sort: { deliveryDate: -1, 'deliverySchedule.hour': -1 },
+                // Ordenar por createdAt si no hay deliveryDate (para pedidos local)
+                sort: [
+                    { deliveryDate: -1 },
+                    { createdAt: -1 }
+                ],
             };
 
+            console.log('🔍 Query final para getAllOrders:', JSON.stringify(query, null, 2));
+            console.log('🔍 Options:', options);
+
             const result = await Orders.paginate(query, options);
+            
+            console.log('🔍 Resultado - Total docs:', result.docs?.length || 0);
+            console.log('🔍 Resultado - Total count:', result.totalDocs || 0);
+            if (result.docs && result.docs.length > 0) {
+                const deliveryTypes = result.docs.map(d => d.deliveryType);
+                console.log('🔍 Tipos de entrega encontrados:', [...new Set(deliveryTypes)]);
+                console.log('🔍 Pedidos local:', result.docs.filter(d => d.deliveryType === 'local').length);
+            }
 
             return {
                 success: true,

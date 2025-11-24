@@ -29,6 +29,17 @@ export default class StoreOrdersController {
                 deliveryType
             });
 
+            // Log detallado de la respuesta
+            if (response.success && response.data) {
+                const totalDocs = response.data.docs?.length || 0;
+                const localOrders = response.data.docs?.filter(d => d.deliveryType === 'local').length || 0;
+                console.log('📊 Respuesta getAllOrders:', {
+                    totalDocs,
+                    localOrders,
+                    deliveryTypes: [...new Set(response.data.docs?.map(d => d.deliveryType) || [])]
+                });
+            }
+
             return res.status(response.success ? 200 : 400).json(response);
         } catch (error) {
             console.error('❌ Error en getAllOrders controller:', error);

@@ -186,13 +186,13 @@ export default class StoreProductsService {
             }
             
             const result = {
-                _id: p._id,
-                name: p.name,
+            _id: p._id,
+            name: p.name,
                 priceBase: p.priceBase ?? p.price ?? 0,
                 priceDiscount: p.priceDiscount ?? 0,
                 image: productImage || null,
                 images: allImages.length > 0 ? allImages : (productImage ? [productImage] : []),
-                isPack: false
+            isPack: false
             };
             
             // Debug: verificar que se está devolviendo
@@ -213,15 +213,15 @@ export default class StoreProductsService {
         const normalizedPacks = packs.map(p => {
             const packImage = p.image || null;
             const result = {
-                _id: p._id,
-                name: `${p.name} (Pack)`,
-                priceBase: p.price,
-                priceDiscount: null,
+            _id: p._id,
+            name: `${p.name} (Pack)`,
+            priceBase: p.price,
+            priceDiscount: null,
                 price: p.price,
                 image: packImage,
                 images: packImage ? [packImage] : [],
-                isPack: true,
-                items: p.products
+            isPack: true,
+            items: p.products
             };
             
             // Debug: verificar que se está devolviendo
@@ -312,7 +312,7 @@ export default class StoreProductsService {
                 const obj = p.toObject();
                 return { ...obj, type: 'product' };
             });
-            
+
             const packsArray = packsResult.map(p => {
                 const obj = p.toObject();
                 // Asegurar que tenga _id

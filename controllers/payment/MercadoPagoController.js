@@ -32,11 +32,23 @@ export default class MercadoPagoController {
         try {
             const response = await service.createPreference({ amount, buyOrder, sessionId, payload });
 
+            // Verificar si la respuesta indica error
+            if (!response || response.success === false) {
+                console.warn('⚠️ [MercadoPago] Error en la respuesta del servicio:', response);
+                return res.status(500).json({
+                    success: false,
+                    message: response?.message || 'Error al generar datos de pago',
+                    error: response?.error || 'Error desconocido'
+                });
+            }
+
+            // Verificar que los datos requeridos estén presentes
             if (!response?.data?.token || !response?.data?.url) {
-                console.warn('⚠️ [MercadoPago] Datos incompletos en la respuesta del servicio');
+                console.warn('⚠️ [MercadoPago] Datos incompletos en la respuesta del servicio:', response);
                 return res.status(500).json({
                     success: false,
                     message: 'Error al generar datos de pago',
+                    error: 'Faltan token o URL en la respuesta'
                 });
             }
 

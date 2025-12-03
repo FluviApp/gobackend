@@ -6,24 +6,24 @@ import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 export default class MercadoPagoService {
     constructor() {
         connectMongoDB();
-        
+
         // Configurar Mercado Pago
         const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
         if (!accessToken) {
             console.warn('⚠️ [MercadoPago] MERCADOPAGO_ACCESS_TOKEN no configurado');
         }
-        
-        const client = new MercadoPagoConfig({ 
+
+        const client = new MercadoPagoConfig({
             accessToken: accessToken || 'TEST-TOKEN',
-            options: { 
+            options: {
                 timeout: 5000,
                 // Forzar modo test si el token es de prueba
                 // Mercado Pago detecta automáticamente el ambiente basado en el token
             }
         });
-        
+
         console.log('🔑 [MercadoPago] Token configurado:', accessToken ? `${accessToken.substring(0, 20)}...` : 'NO CONFIGURADO');
-        
+
         this.preference = new Preference(client);
         this.payment = new Payment(client);
         this.orderService = new ClientOrderService();
@@ -35,7 +35,7 @@ export default class MercadoPagoService {
             console.log('ℹ️ [MercadoPago] MerchantOrder no disponible en este entorno/versión');
             this.merchantOrder = null;
         }
-        
+
         // URL del backend para callbacks
         const backendUrl = process.env.BACKEND_URL || 'https://gobackend-qomm.onrender.com';
         this.backendUrl = backendUrl;
@@ -107,9 +107,9 @@ export default class MercadoPagoService {
             const webhookUrl = `${this.backendUrl}/api/payment/mercadopago/webhook`;
 
             // Detectar si estamos en desarrollo local
-            const isLocal = this.backendUrl.includes('localhost') || 
-                           this.backendUrl.includes('192.168') || 
-                           this.backendUrl.includes('127.0.0.1');
+            const isLocal = this.backendUrl.includes('localhost') ||
+                this.backendUrl.includes('192.168') ||
+                this.backendUrl.includes('127.0.0.1');
 
             console.log('🔗 [MercadoPago] URLs configuradas:', {
                 success: successUrl,
@@ -163,7 +163,7 @@ export default class MercadoPagoService {
                 });
                 throw mpError;
             }
-            
+
             if (!preference || !preference.id || !preference.init_point) {
                 console.error('❌ [MercadoPago] Respuesta inválida:', preference);
                 throw new Error('Respuesta inválida de Mercado Pago: falta id o init_point');
@@ -220,7 +220,7 @@ export default class MercadoPagoService {
             console.log('📥 [MercadoPago] Consultando estado de pago:', token);
 
             // Buscar en BD primero
-            let trx = await PaymentTransaction.findOne({ 
+            let trx = await PaymentTransaction.findOne({
                 token,
                 paymentMethod: 'mercadopago'
             });
@@ -258,15 +258,15 @@ export default class MercadoPagoService {
                             trx.response = mpPayment;
                             await trx.save();
 
-                        return {
-                            success: true,
-                            message: 'Estado de pago actualizado desde Mercado Pago',
-                            data: {
-                                token: token,
-                                status: normalizedStatus,
-                                response: mpPayment
-                            }
-                        };
+                            return {
+                                success: true,
+                                message: 'Estado de pago actualizado desde Mercado Pago',
+                                data: {
+                                    token: token,
+                                    status: normalizedStatus,
+                                    response: mpPayment
+                                }
+                            };
                         } else {
                             console.log('⚠️ [MercadoPago] Pago obtenido por id no corresponde a la transacción esperada. Ignorando.');
                         }
@@ -287,7 +287,7 @@ export default class MercadoPagoService {
                         if (mpPayment?.status === 'approved' && mpPayment?.status_detail !== 'accredited') {
                             normalizedStatus = 'PENDING';
                         }
-                        
+
                         if (samePreference && sameExternal) {
                             // Actualizar o crear transacción
                             if (trx) {
@@ -400,7 +400,7 @@ export default class MercadoPagoService {
                             if (ps === 'approved' && pd === 'accredited') {
                                 // Confirmar con payments.get para estado más reciente
                                 let full = null;
-                                try { full = await this.payment.get({ id: p.id }); } catch {}
+                                try { full = await this.payment.get({ id: p.id }); } catch { }
                                 const resp = full || p;
                                 const isAcc = resp?.status === 'approved' && String(resp?.status_detail || '').toLowerCase() === 'accredited';
                                 if (isAcc) {
@@ -451,9 +451,83 @@ export default class MercadoPagoService {
                 };
             }
 
+            // Si no hay transacción en BD pero tenemos un preference_id, intentar buscar en Mercado Pago
+            // Un preference_id tiene formato UUID (ej: 2973455610-8b52e5ef-480d-4b39-a20a-959cf07d1698)
+            const isPreferenceId = typeof token === 'string' && token.includes('-') && token.length > 20;
+            if (isPreferenceId) {
+                try {
+                    // Buscar merchant orders por preference_id
+                    const url = `https://api.mercadopago.com/merchant_orders/search?preference_id=${encodeURIComponent(String(token))}`;
+                    const resp = await (await import('node-fetch')).default(url, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (resp.ok) {
+                        const json = await resp.json();
+                        const orders = Array.isArray(json?.elements) ? json.elements : [];
+                        const order = orders.find(o => o?.preference_id === token) || orders[0];
+
+                        if (order && Array.isArray(order.payments) && order.payments.length > 0) {
+                            // Obtener el pago más reciente
+                            const latestPayment = order.payments[order.payments.length - 1];
+                            let fullPayment = null;
+
+                            try {
+                                fullPayment = await this.payment.get({ id: latestPayment.id });
+                            } catch (err) {
+                                console.log('⚠️ [MercadoPago] No se pudo obtener pago completo, usando datos del order');
+                                fullPayment = latestPayment;
+                            }
+
+                            const normalizedStatus = this.normalizeStatus(fullPayment?.status || latestPayment.status);
+
+                            // Crear transacción en BD para futuras consultas
+                            const newTrx = new PaymentTransaction({
+                                token: token,
+                                buyOrder: order.external_reference || `MP-${token}`,
+                                sessionId: order.payer?.id?.toString() || 'unknown',
+                                amount: order.total_amount || fullPayment?.transaction_amount || 0,
+                                status: normalizedStatus,
+                                paymentMethod: 'mercadopago',
+                                response: fullPayment || latestPayment
+                            });
+                            await newTrx.save();
+
+                            return {
+                                success: true,
+                                message: 'Estado de pago obtenido desde Mercado Pago (preference_id)',
+                                data: {
+                                    token: token,
+                                    status: normalizedStatus,
+                                    response: fullPayment || latestPayment
+                                }
+                            };
+                        } else if (order) {
+                            // Hay una orden pero sin pagos aún (pendiente)
+                            return {
+                                success: true,
+                                message: 'Preferencia encontrada pero sin pagos aún',
+                                data: {
+                                    token: token,
+                                    status: 'PENDING',
+                                    response: order
+                                }
+                            };
+                        }
+                    }
+                } catch (err) {
+                    console.log('⚠️ [MercadoPago] Error buscando por preference_id:', err?.message || err);
+                }
+            }
+
             return {
                 success: false,
-                message: 'Pago no encontrado'
+                message: 'Pago no encontrado',
+                error: 'No se encontró la transacción en la base de datos ni en Mercado Pago'
             };
         } catch (err) {
             console.error('❌ [MercadoPago] Error consultando estado:', err);
@@ -498,10 +572,10 @@ export default class MercadoPagoService {
             }
 
             const paymentId = webhookData.id;
-            
+
             // Obtener información completa del pago
             const payment = await this.payment.get({ id: paymentId });
-            
+
             if (!payment) {
                 console.error('❌ [MercadoPago] Pago no encontrado en webhook:', paymentId);
                 return { success: false, message: 'Pago no encontrado' };
@@ -584,7 +658,7 @@ export default class MercadoPagoService {
         };
 
         const normalized = statusMap[mpStatus?.toLowerCase()] || mpStatus?.toUpperCase() || 'UNKNOWN';
-        
+
         // Mapear también estados que ya están en mayúsculas
         if (normalized === 'UNKNOWN' && mpStatus) {
             const upperStatus = mpStatus.toUpperCase();
@@ -592,7 +666,7 @@ export default class MercadoPagoService {
                 return upperStatus;
             }
         }
-        
+
         return normalized;
     };
 
@@ -608,7 +682,7 @@ export default class MercadoPagoService {
                 };
             }
 
-            const trx = await PaymentTransaction.findOne({ 
+            const trx = await PaymentTransaction.findOne({
                 token,
                 paymentMethod: 'mercadopago'
             }).lean();
@@ -663,7 +737,7 @@ export default class MercadoPagoService {
     // Buscar pedido asociado a una transacción
     getOrderByTransactionToken = async (token) => {
         try {
-            const trx = await PaymentTransaction.findOne({ 
+            const trx = await PaymentTransaction.findOne({
                 token,
                 paymentMethod: 'mercadopago'
             }).lean();
@@ -724,7 +798,7 @@ export default class MercadoPagoService {
             transactions.forEach(trx => {
                 const trxDate = new Date(trx.createdAt);
                 const minutesSince = (now - trxDate) / (1000 * 60);
-                
+
                 if (minutesSince < 10) {
                     active.push(trx);
                 } else {

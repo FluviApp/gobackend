@@ -65,7 +65,12 @@ export default class MercadoPagoController {
 
         try {
             const response = await service.getPaymentStatus(token);
-            return res.status(response.success ? 200 : 404).json(response);
+            // Si no se encontró, devolver 200 con success: false (no 404)
+            // para que el frontend pueda manejar el caso
+            if (!response.success && response.message === 'Pago no encontrado') {
+                return res.status(200).json(response);
+            }
+            return res.status(response.success ? 200 : 500).json(response);
         } catch (e) {
             console.error('❌ [MercadoPago] Error en getPaymentStatus:', e);
             return res.status(500).json({
@@ -81,10 +86,10 @@ export default class MercadoPagoController {
         try {
             console.log('📥 [MercadoPago] Webhook recibido:', req.body);
             console.log('📥 [MercadoPago] Headers:', req.headers);
-            
+
             // Mercado Pago puede enviar webhooks en formato JSON o form-urlencoded
             let webhookData = req.body;
-            
+
             // Si viene como form-urlencoded, parsear manualmente
             if (typeof webhookData === 'string' || !webhookData.type) {
                 // Intentar parsear como JSON si es string
@@ -97,9 +102,9 @@ export default class MercadoPagoController {
                     }
                 }
             }
-            
+
             const result = await service.processWebhook(webhookData);
-            
+
             if (result.success) {
                 return res.status(200).json(result);
             } else {

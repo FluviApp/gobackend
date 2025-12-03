@@ -21,18 +21,30 @@ export default class PaymentController {
         try {
             const response = await service.createTransaction({ amount, buyOrder, sessionId, payload });
 
-            if (!response?.data?.token || !response?.data?.url) {
-                console.warn('⚠️ Datos incompletos en la respuesta del servicio');
+            // Verificar si la respuesta indica error
+            if (!response || response.success === false) {
+                console.warn('⚠️ [Webpay] Error en la respuesta del servicio:', response);
                 return res.status(500).json({
                     success: false,
-                    message: 'Error al generar datos de pago',
+                    message: response?.message || 'Error al generar datos de pago',
+                    error: response?.error || 'Error desconocido'
                 });
             }
 
-            console.log('✅ createTransaction success:', response);
+            // Verificar que los datos requeridos estén presentes
+            if (!response?.data?.token || !response?.data?.url) {
+                console.warn('⚠️ [Webpay] Datos incompletos en la respuesta del servicio:', response);
+                return res.status(500).json({
+                    success: false,
+                    message: 'Error al generar datos de pago',
+                    error: 'Faltan token o URL en la respuesta'
+                });
+            }
+
+            console.log('✅ [Webpay] createTransaction success:', response);
             return res.status(200).json(response);
         } catch (e) {
-            console.error('❌ Error en createTransaction:', e);
+            console.error('❌ [Webpay] Error en createTransaction:', e);
             return res.status(500).json({
                 success: false,
                 message: 'Error creando transacción',
@@ -161,7 +173,7 @@ export default class PaymentController {
             // Redirigir al frontend según el resultado
             // El commitResult.data puede tener status directamente o en response.status
             const status = commitResult?.data?.status || commitResult?.data?.response?.status;
-            
+
             if (status === 'AUTHORIZED') {
                 // Pago exitoso - redirigir al frontend
                 // Redirigimos a /webpayprocess con el token para que el componente maneje la lógica

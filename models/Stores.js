@@ -64,7 +64,17 @@ const storeSchema = new Schema(
             type: Boolean,
             required: true,
             default: true,
-        }
+        },
+        // Recargos por método de pago: { tarjeta: { type: 'percent', value: 3.5 }, webpay: { type: 'fixed', value: 500 }, ... }
+        paymentFees: {
+            type: Schema.Types.Mixed,
+            default: {},
+        },
+        taxPercent: {
+            type: Number,
+            default: 19,
+            min: 0,
+        },
 
     },
     {

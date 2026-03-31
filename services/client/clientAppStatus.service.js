@@ -347,6 +347,8 @@ export default class ClientAppStatusService {
                     paymentMethods: Array.isArray(store.paymentMethods)
                         ? store.paymentMethods
                         : (store.paymentmethod ?? []),
+                    paymentFees: store.paymentFees ?? {},
+                    taxPercent: Number.isFinite(Number(store.taxPercent)) ? Number(store.taxPercent) : 19,
                     deliveryZones: formattedZones
                 }
             };

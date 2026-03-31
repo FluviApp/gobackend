@@ -123,6 +123,11 @@ const orderSchema = new Schema(
 
         price: { type: Number, required: true },
         finalPrice: { type: Number },
+        paymentFeeAmount: { type: Number, default: 0 },
+        paymentFeeType: { type: String, enum: ['none', 'percent', 'fixed'], default: 'none' },
+        paymentFeeValue: { type: Number, default: 0 },
+        taxPercent: { type: Number, default: 0 },
+        taxAmount: { type: Number, default: 0 },
 
         products: {
             type: [productSchema],

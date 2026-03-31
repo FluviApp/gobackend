@@ -2,6 +2,7 @@ import connectMongoDB from '../../libs/mongoose.js';
 import Orders from '../../models/Orders.js';
 import User from '../../models/User.js';
 import Notifications from '../../models/Notifications.js';
+import Stores from '../../models/Stores.js';
 import { sendOrderStatusUpdateEmail } from '../../utils/sendOrderStatusUpdateEmail.js';
 import { sendPushNotification } from '../../utils/sendPushNotification.js';
 
@@ -164,6 +165,48 @@ export default class StoreOrdersService {
         return now.isAfter(atHour);
     }
 
+    normalizePaymentMethod(method) {
+        const raw = String(method || '').trim().toLowerCase();
+        if (raw === 'tarjeta_local' || raw === 'credito' || raw === 'crédito' || raw === 'debito' || raw === 'débito') {
+            return 'tarjeta';
+        }
+        if (['efectivo', 'transferencia', 'webpay', 'mercadopago', 'tarjeta', 'otro'].includes(raw)) {
+            return raw;
+        }
+        return 'otro';
+    }
+
+    calculatePaymentFee({ baseAmount, feeConfig }) {
+        const base = Number(baseAmount);
+        if (!Number.isFinite(base) || base <= 0) {
+            return { paymentFeeAmount: 0, paymentFeeType: 'none', paymentFeeValue: 0 };
+        }
+
+        const type = feeConfig?.type;
+        const value = Number(feeConfig?.value);
+        if (!['percent', 'fixed'].includes(type) || !Number.isFinite(value) || value <= 0) {
+            return { paymentFeeAmount: 0, paymentFeeType: 'none', paymentFeeValue: 0 };
+        }
+
+        const paymentFeeAmount = type === 'percent' ? (base * value) / 100 : value;
+        return {
+            paymentFeeAmount: Number(paymentFeeAmount.toFixed(2)),
+            paymentFeeType: type,
+            paymentFeeValue: value,
+        };
+    }
+
+    getProductsSubtotal(products) {
+        if (!Array.isArray(products)) return 0;
+        return products.reduce((sum, item) => {
+            const lineTotal = Number(item?.totalPrice);
+            if (Number.isFinite(lineTotal)) return sum + lineTotal;
+            const unit = Number(item?.unitPrice) || 0;
+            const qty = Number(item?.quantity) || 0;
+            return sum + (unit * qty);
+        }, 0);
+    }
+
     createOrder = async (data) => {
         try {
             // 🔄 Normalización de deliveryType
@@ -243,6 +286,46 @@ export default class StoreOrdersService {
                     };
                 }
             }
+
+            // 💳 Recalcular recargo por método de pago en backend (fuente de verdad)
+            const normalizedPaymentMethod = this.normalizePaymentMethod(data.paymentMethod);
+            data.paymentMethod = normalizedPaymentMethod;
+
+            const rawPrice = Number(data.price);
+            const productsSubtotal = this.getProductsSubtotal(data.products);
+            const subtotal = Number.isFinite(rawPrice) && rawPrice >= 0 ? rawPrice : productsSubtotal;
+
+            let paymentFeeAmount = 0;
+            let paymentFeeType = 'none';
+            let paymentFeeValue = 0;
+            let taxPercent = 0;
+            let taxAmount = 0;
+
+            if (data.storeId) {
+                try {
+                    const store = await Stores.findById(data.storeId, { paymentFees: 1, taxPercent: 1 }).lean();
+                    const feeConfig = store?.paymentFees?.[normalizedPaymentMethod];
+                    const feeResult = this.calculatePaymentFee({ baseAmount: subtotal, feeConfig });
+                    paymentFeeAmount = feeResult.paymentFeeAmount;
+                    paymentFeeType = feeResult.paymentFeeType;
+                    paymentFeeValue = feeResult.paymentFeeValue;
+
+                    const parsedTaxPercent = Number(store?.taxPercent);
+                    taxPercent = Number.isFinite(parsedTaxPercent) && parsedTaxPercent >= 0 ? parsedTaxPercent : 0;
+                    const taxableBase = subtotal + paymentFeeAmount;
+                    taxAmount = Number(((taxableBase * taxPercent) / 100).toFixed(2));
+                } catch (feeError) {
+                    console.warn('⚠️ No se pudo calcular recargo/IVA:', feeError.message);
+                }
+            }
+
+            data.price = subtotal;
+            data.paymentFeeAmount = paymentFeeAmount;
+            data.paymentFeeType = paymentFeeType;
+            data.paymentFeeValue = paymentFeeValue;
+            data.taxPercent = taxPercent;
+            data.taxAmount = taxAmount;
+            data.finalPrice = Number((subtotal + paymentFeeAmount + taxAmount).toFixed(2));
 
             const newOrder = new Orders(data);
             const saved = await newOrder.save();

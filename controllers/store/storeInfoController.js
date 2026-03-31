@@ -4,7 +4,6 @@ const storeInfoService = new StoreInfoService();
 
 export default class StoreInfoController {
     getStoreInfo = async (req, res) => {
-        console.log('image')
         try {
             const { storeId } = req.query;
             const response = await storeInfoService.getStoreInfo({ storeId });
@@ -14,6 +13,21 @@ export default class StoreInfoController {
             return res.status(500).json({
                 success: false,
                 message: 'Error inesperado al obtener info de la tienda',
+            });
+        }
+    };
+
+    updateStoreInfo = async (req, res) => {
+        try {
+            const { storeId } = req.query;
+            const { paymentFees, taxPercent } = req.body || {};
+            const response = await storeInfoService.updateStoreInfo({ storeId, paymentFees, taxPercent });
+            return res.status(response.success ? 200 : 400).json(response);
+        } catch (error) {
+            console.error('❌ Controller - Error al actualizar info de la tienda:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Error inesperado al actualizar info de la tienda',
             });
         }
     };

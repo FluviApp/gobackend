@@ -6,7 +6,6 @@ const router = express.Router();
 const storeInfoController = new StoreInfoController();
 
 router.get('/info', storeInfoController.getStoreInfo);
-
-console.log('[router] /api/store/info ready'); // <- te confirma que el archivo se cargó
+router.put('/info', storeInfoController.updateStoreInfo);
 
 export default router;

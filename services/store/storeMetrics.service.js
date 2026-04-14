@@ -596,6 +596,14 @@ class StoreMetricsService {
                 startDate = now.startOf('month').toDate();
                 endDate = now.endOf('day').toDate();
                 break;
+            case 'current_week':
+                startDate = now.startOf('isoWeek').startOf('day').toDate();
+                endDate = now.endOf('day').toDate();
+                break;
+            case 'current_year':
+                startDate = now.startOf('year').startOf('day').toDate();
+                endDate = now.endOf('day').toDate();
+                break;
             case 'today':
                 startDate = now.startOf('day').toDate();
                 endDate = now.endOf('day').toDate();
@@ -635,7 +643,7 @@ class StoreMetricsService {
             case '90d':
                 groupBy = {
                     $dateToString: {
-                        format: '%Y-%W',
+                        format: '%G-W%V',
                         date: '$deliveredAt',
                         timezone: TZ
                     }
@@ -654,6 +662,24 @@ class StoreMetricsService {
                 groupBy = {
                     $dateToString: {
                         format: '%Y-%m-%d',
+                        date: '$deliveredAt',
+                        timezone: TZ
+                    }
+                };
+                break;
+            case 'current_week':
+                groupBy = {
+                    $dateToString: {
+                        format: '%Y-%m-%d',
+                        date: '$deliveredAt',
+                        timezone: TZ
+                    }
+                };
+                break;
+            case 'current_year':
+                groupBy = {
+                    $dateToString: {
+                        format: '%Y-%m',
                         date: '$deliveredAt',
                         timezone: TZ
                     }
@@ -702,6 +728,16 @@ class StoreMetricsService {
                 // Período anterior sería el día anterior
                 startDate = now.subtract(1, 'day').startOf('day').toDate();
                 endDate = now.subtract(1, 'day').endOf('day').toDate();
+                break;
+            case 'current_week': {
+                const prevWeekStart = now.startOf('isoWeek').subtract(1, 'week');
+                startDate = prevWeekStart.startOf('day').toDate();
+                endDate = prevWeekStart.endOf('isoWeek').endOf('day').toDate();
+                break;
+            }
+            case 'current_year':
+                startDate = now.subtract(1, 'year').startOf('year').toDate();
+                endDate = now.subtract(1, 'year').endOf('year').toDate();
                 break;
             default:
                 startDate = now.subtract(60, 'day').startOf('day').toDate();
@@ -841,6 +877,7 @@ class StoreMetricsService {
                 {
                     $project: {
                         _id: 0,
+                        period: '$_id',
                         date: '$_id',
                         orderCount: 1,
                         totalSales: 1,
@@ -848,7 +885,7 @@ class StoreMetricsService {
                         uniqueCustomers: { $size: '$uniqueCustomers' }
                     }
                 },
-                { $sort: { date: 1 } }
+                { $sort: { period: 1 } }
             ]);
 
             return {

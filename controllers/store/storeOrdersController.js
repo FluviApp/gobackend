@@ -90,24 +90,19 @@ export default class StoreOrdersController {
 
     getPendingOrders = async (req, res) => {
         try {
-            const { storeId } = req.query; // Obtener storeId del query
-
-            // Verificar que se estén pasando los parámetros correctamente
-            console.log('🏷️ Store ID:', storeId);
+            const { storeId, datePreset } = req.query;
 
             const response = await service.getPendingOrders({
                 storeId,
+                datePreset: datePreset || 'today',
             });
 
-            // Verifica si la respuesta contiene los datos correctos
-            console.log('🎯 Respuesta del servicio:', response);
-
-            return res.status(response.success ? 200 : 400).json(response); // Devuelve la respuesta correctamente
+            return res.status(response.success ? 200 : 400).json(response);
         } catch (error) {
-            console.error('❌ Error al obtener pedidos hasta hoy:', error);
+            console.error('❌ Error al obtener pedidos pendientes:', error);
             return res.status(500).json({
                 success: false,
-                message: 'Error al obtener pedidos hasta hoy',
+                message: 'Error al obtener pedidos pendientes',
             });
         }
     };

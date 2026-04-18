@@ -484,35 +484,54 @@ export default class StoreOrdersService {
         }
     };
 
-    // ⏰ Pedidos pendientes hasta hoy (fin de día en Chile)
-    getPendingOrders = async ({ storeId }) => {
-        const estadosExcluidos = ['entregado']; // Solo excluimos 'entregado'
+    /**
+     * Cola de despacho a domicilio: por defecto solo "hoy", con presets mañana / hoy+mañana.
+     * @param {string} [datePreset] - 'today' | 'tomorrow' | 'today_and_tomorrow'
+     */
+    getPendingOrders = async ({ storeId, datePreset = 'today' }) => {
+        const estadosFinales = ['entregado', 'cancelado', 'devuelto'];
         try {
-            const endOfTodayChile = dayjs().tz(TZ).endOf('day').toDate();
+            const now = dayjs().tz(TZ);
+            let rangeStart;
+            let rangeEnd;
+
+            switch (datePreset) {
+                case 'tomorrow': {
+                    const t = now.add(1, 'day');
+                    rangeStart = t.startOf('day').toDate();
+                    rangeEnd = t.endOf('day').toDate();
+                    break;
+                }
+                case 'today_and_tomorrow':
+                    rangeStart = now.startOf('day').toDate();
+                    rangeEnd = now.add(1, 'day').endOf('day').toDate();
+                    break;
+                case 'today':
+                default:
+                    rangeStart = now.startOf('day').toDate();
+                    rangeEnd = now.endOf('day').toDate();
+                    break;
+            }
 
             const query = {
                 storeId,
                 deliveryType: 'domicilio',
-                deliveryDate: { $lte: endOfTodayChile },
-                status: { $nin: estadosExcluidos },
+                deliveryDate: { $gte: rangeStart, $lte: rangeEnd },
+                status: { $nin: estadosFinales },
             };
-
-            console.log("🔍 Consulta que se va a ejecutar:", query);
 
             const result = await Orders.find(query).sort({ deliveryDate: 1 });
 
-            console.log('🏷️ Resultados obtenidos:', result);
-
             return {
                 success: true,
-                message: 'Pedidos hasta hoy obtenidos correctamente',
+                message: 'Pedidos obtenidos correctamente',
                 data: result,
             };
         } catch (error) {
-            console.error('❌ Error al obtener pedidos hasta hoy:', error);
+            console.error('❌ Error al obtener pedidos pendientes:', error);
             return {
                 success: false,
-                message: 'Error al obtener pedidos hasta hoy',
+                message: 'Error al obtener pedidos pendientes',
             };
         }
     };

@@ -50,6 +50,7 @@ export default class StorePacksService {
                 name: data.name.trim(),
                 price: parseFloat(data.price),
                 image: packImageUrl,
+                available: data.available === 'false' ? false : true,
                 products: parsedProducts.map((p) => ({
                     productId: p.productId,
                     name: p.name,
@@ -110,6 +111,7 @@ export default class StorePacksService {
                     name: data.name?.trim(),
                     price: parseFloat(data.price),
                     image: updatedImage,
+                    available: data.available === 'false' ? false : true,
                     products: parsedProducts.map(p => ({
                         productId: p.productId,
                         name: p.name,

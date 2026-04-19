@@ -49,6 +49,10 @@ const packSchema = new Schema(
             type: String,
             required: true,
         },
+        available: {
+            type: Boolean,
+            default: true,
+        },
         products: [packProductSchema],
     },
     {
@@ -57,6 +61,7 @@ const packSchema = new Schema(
 );
 
 packSchema.plugin(paginate);
+packSchema.index({ storeId: 1, available: 1 });
 
 const Packs = mongoose.model('Packs', packSchema);
 

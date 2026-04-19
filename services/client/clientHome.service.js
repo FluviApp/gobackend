@@ -15,7 +15,10 @@ export default class ClientHomeService {
             const [banners, categories, packs, mostSold, discounts, store] = await Promise.all([
                 Banners.find({ storeId }).sort({ createdAt: -1 }).limit(5),
                 Category.find({ storeId }).sort({ createdAt: -1 }).limit(10),
-                Packs.find({ storeId }).sort({ createdAt: -1 }).limit(6),
+                Packs.find({
+                    storeId,
+                    available: { $ne: false }, // mantiene visibles packs antiguos sin campo available
+                }).sort({ createdAt: -1 }).limit(6),
                 this.getMostSoldProducts(storeId),
                 Product.find({ storeId, priceDiscount: { $gt: 0 } }).limit(10),
                 Stores.findById(storeId, 'phone') // Solo trae el campo `phone`

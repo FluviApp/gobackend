@@ -8,7 +8,10 @@ export default class ClientPacksService {
 
     getPacksByStoreId = async (storeId) => {
         try {
-            const packs = await Packs.find({ storeId }).sort({ createdAt: -1 });
+            const packs = await Packs.find({
+                storeId,
+                available: { $ne: false }, // mantiene visibles packs antiguos sin campo available
+            }).sort({ createdAt: -1 });
 
             return {
                 success: true,

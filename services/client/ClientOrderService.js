@@ -7,6 +7,9 @@ import User from '../../models/User.js';
 import crypto from 'crypto';
 import { sendOrderConfirmationEmail } from '../../utils/sendOrderConfirmationEmail.js';
 import { sendAdminNewOrderNotification } from '../../utils/sendAdminNewOrderNotification.js';
+import ClientDiscountCodesService from './ClientDiscountCodesService.js';
+
+const clientDiscountCodesService = new ClientDiscountCodesService();
 
 export default class ClientOrderService {
     constructor() {
@@ -281,9 +284,57 @@ export default class ClientOrderService {
                 }
             }
 
+            // 🎟️ Re-validar y aplicar código de descuento server-side
+            let appliedDiscount = null;
+            if (data.discountCode) {
+                const subtotal = Number(data.price) || 0;
+                const validation = await clientDiscountCodesService.validateDiscountCode({
+                    code: data.discountCode,
+                    storeId: data.storeId,
+                    subtotal,
+                    email: data.customer?.email,
+                    userId: data.customer?.id,
+                });
+                if (!validation.success) {
+                    return { success: false, message: validation.message || 'Código de descuento inválido' };
+                }
+                appliedDiscount = validation.data;
+
+                const discountAmount = Number(appliedDiscount.discountAmount) || 0;
+                const paymentFeeAmount = Number(data.paymentFeeAmount) || 0;
+                const taxPercent = Number(data.taxPercent) || 0;
+                const taxBase = Math.max(0, subtotal - discountAmount) + paymentFeeAmount;
+                const taxAmount = Number(((taxBase * taxPercent) / 100).toFixed(2));
+                const finalPrice = Number((taxBase + taxAmount).toFixed(2));
+
+                data.discountCode = appliedDiscount.code;
+                data.discountCodeId = appliedDiscount.codeId;
+                data.discountType = appliedDiscount.type;
+                data.discountValue = Number(appliedDiscount.value) || 0;
+                data.discountAmount = discountAmount;
+                data.taxAmount = taxAmount;
+                data.finalPrice = finalPrice;
+            } else {
+                data.discountCode = '';
+                data.discountCodeId = null;
+                data.discountType = 'none';
+                data.discountValue = 0;
+                data.discountAmount = 0;
+            }
+
             // 🧾 Crear pedido
             const newOrder = new Order(data);
             await newOrder.save();
+
+            // 🔢 Registrar uso del código (global + por usuario)
+            if (appliedDiscount?.codeId) {
+                await clientDiscountCodesService.registerUsage({
+                    codeId: appliedDiscount.codeId,
+                    userId: newOrder.customer?.id || null,
+                    email: newOrder.customer?.email,
+                    orderId: newOrder._id,
+                });
+            }
 
             // 📧 Confirmación
             const { email, name } = newOrder.customer || {};

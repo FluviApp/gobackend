@@ -20,6 +20,40 @@ const DiscountCodesSchema = new mongoose.Schema({
         uppercase: true,
         trim: true
     },
+    type: {
+        type: String,
+        enum: ['percent', 'fixed'],
+        default: 'percent'
+    },
+    value: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    minAmount: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    maxUses: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    perUserLimit: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    usedCount: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    expiresAt: {
+        type: Date,
+        default: null
+    },
     status: {
         type: Boolean,
         default: true

@@ -43,10 +43,19 @@ export default class StoreDiscountCodesService {
                 throw error;
             }
 
+            const allowedTypes = ['percent', 'fixed'];
+            const type = allowedTypes.includes(data.type) ? data.type : 'percent';
+
             const newCode = new DiscountCodes({
                 storeId: data.storeId,
                 name: data.name.trim(),
                 code: data.code.toUpperCase().trim(),
+                type,
+                value: Number(data.value) || 0,
+                minAmount: Number(data.minAmount) || 0,
+                maxUses: Number(data.maxUses) || 0,
+                perUserLimit: Number(data.perUserLimit) || 0,
+                expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
                 status: typeof data.status === 'boolean' ? data.status : true,
             });
 
@@ -68,11 +77,20 @@ export default class StoreDiscountCodesService {
 
     updateDiscountCode = async (id, data) => {
         try {
-            const updated = await DiscountCodes.findByIdAndUpdate(id, {
+            const allowedTypes = ['percent', 'fixed'];
+            const update = {
                 name: data.name.trim(),
                 code: data.code.toUpperCase().trim(),
                 status: typeof data.status === 'boolean' ? data.status : true,
-            }, { new: true });
+            };
+            if (data.type !== undefined) update.type = allowedTypes.includes(data.type) ? data.type : 'percent';
+            if (data.value !== undefined) update.value = Number(data.value) || 0;
+            if (data.minAmount !== undefined) update.minAmount = Number(data.minAmount) || 0;
+            if (data.maxUses !== undefined) update.maxUses = Number(data.maxUses) || 0;
+            if (data.perUserLimit !== undefined) update.perUserLimit = Number(data.perUserLimit) || 0;
+            if (data.expiresAt !== undefined) update.expiresAt = data.expiresAt ? new Date(data.expiresAt) : null;
+
+            const updated = await DiscountCodes.findByIdAndUpdate(id, update, { new: true });
 
             if (!updated) {
                 return {

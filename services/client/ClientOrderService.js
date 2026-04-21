@@ -228,13 +228,27 @@ export default class ClientOrderService {
 
     createOrder = async (data) => {
         try {
-            // 📅 deliveryDate = DÍA de entrega (Chile) a las 12:00, convertido a UTC
-            if (data.deliverySchedule?.day && data.deliverySchedule?.hour) {
+            // 📅 deliveryDate: si el frontend envía la fecha exacta (ISO yyyy-mm-dd) la usamos,
+            // si no, caemos al cálculo "próximo día de la semana" como fallback.
+            if (data.deliverySchedule?.date) {
+                const iso = String(data.deliverySchedule.date);
+                // Interpretamos la fecha en horario Chile a las 12:00 para guardar en UTC
+                const [y, m, d] = iso.split('T')[0].split('-').map(Number);
+                if (y && m && d) {
+                    const targetCL = new Date(y, m - 1, d, 12, 0, 0, 0);
+                    const serverNow = new Date();
+                    const clNow = new Date(serverNow.toLocaleString('en-US', { timeZone: 'America/Santiago' }));
+                    const utcOffsetMin = Math.round((serverNow - clNow) / 60000);
+                    const targetUTC = new Date(targetCL.getTime() + utcOffsetMin * 60 * 1000);
+                    data.deliveryDate = targetUTC;
+                    console.log('🧾 DELIVERY (explicit date):', { iso, targetUTC: targetUTC.toISOString() });
+                }
+            } else if (data.deliverySchedule?.day && data.deliverySchedule?.hour) {
                 const deliveryDate = this.getNextWeekdayDate(
                     data.deliverySchedule.day,
                     data.deliverySchedule.hour
                 );
-                console.log('🧾 DELIVERY (final):', {
+                console.log('🧾 DELIVERY (weekday fallback):', {
                     day: data.deliverySchedule.day,
                     hour: data.deliverySchedule.hour,
                     deliveryDateUTC: deliveryDate.toISOString()

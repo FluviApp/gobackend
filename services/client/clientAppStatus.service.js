@@ -4,6 +4,7 @@ import Commerce from '../../models/Commerce.js';
 import Zones from '../../models/Zones.js';
 import Stores from '../../models/Stores.js';
 import Order from '../../models/Orders.js';
+import computeClosedDates from '../../utils/closedDates.js';
 
 export default class ClientAppStatusService {
     constructor() {
@@ -341,6 +342,12 @@ export default class ClientAppStatusService {
                 schedule: filterSchedule(zone.schedule || {}),
             }));
 
+            const closedDates = computeClosedDates({
+                deliverOnHolidays: store.deliverOnHolidays !== false,
+                blockedDates: store.blockedDates || [],
+                days: 60,
+            });
+
             return {
                 success: true,
                 message: 'Datos de tienda obtenidos correctamente',
@@ -350,7 +357,8 @@ export default class ClientAppStatusService {
                         : (store.paymentmethod ?? []),
                     paymentFees: store.paymentFees ?? {},
                     taxPercent: Number.isFinite(Number(store.taxPercent)) ? Number(store.taxPercent) : 19,
-                    deliveryZones: formattedZones
+                    deliveryZones: formattedZones,
+                    closedDates,
                 }
             };
 

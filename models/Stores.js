@@ -75,6 +75,14 @@ const storeSchema = new Schema(
             default: 19,
             min: 0,
         },
+        deliverOnHolidays: {
+            type: Boolean,
+            default: true,
+        },
+        blockedDates: {
+            type: [Date],
+            default: [],
+        },
 
     },
     {

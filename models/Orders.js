@@ -35,6 +35,7 @@ const deliveryScheduleSchema = new Schema(
             enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
         },
         hour: { type: String },
+        date: { type: String },
     },
     { _id: false }
 );

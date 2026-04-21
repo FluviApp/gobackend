@@ -361,14 +361,29 @@ export default class ClientAppStatusService {
                 return false;
             };
 
+            const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+            const sortHoursAsc = (hoursObj) => {
+                if (!hoursObj || typeof hoursObj !== 'object') return hoursObj;
+                const entries = Object.entries(hoursObj).sort(([a], [b]) => a.localeCompare(b));
+                const out = {};
+                entries.forEach(([h, v]) => { out[h] = v; });
+                return out;
+            };
             const applyClosedFilter = (scheduleObj) => {
                 if (!scheduleObj || typeof scheduleObj !== 'object') return scheduleObj;
+                const sortedDayEntries = Object.entries(scheduleObj).sort(([a], [b]) => {
+                    const ia = dayOrder.indexOf(a); const ib = dayOrder.indexOf(b);
+                    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+                });
                 const out = {};
-                Object.entries(scheduleObj).forEach(([day, cfg]) => {
-                    if (cfg?.enabled && isNextOccurrenceBlocked(day)) {
-                        out[day] = { ...cfg, enabled: false };
+                sortedDayEntries.forEach(([day, cfg]) => {
+                    const cfgWithSortedHours = cfg?.hours
+                        ? { ...cfg, hours: sortHoursAsc(cfg.hours) }
+                        : cfg;
+                    if (cfgWithSortedHours?.enabled && isNextOccurrenceBlocked(day)) {
+                        out[day] = { ...cfgWithSortedHours, enabled: false };
                     } else {
-                        out[day] = cfg;
+                        out[day] = cfgWithSortedHours;
                     }
                 });
                 return out;

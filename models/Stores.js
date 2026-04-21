@@ -75,6 +75,11 @@ const storeSchema = new Schema(
             default: 19,
             min: 0,
         },
+        transferWhatsappMessage: {
+            type: String,
+            default: '',
+            trim: true,
+        },
         deliverOnHolidays: {
             type: Boolean,
             default: true,

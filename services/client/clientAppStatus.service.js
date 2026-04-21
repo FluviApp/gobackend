@@ -335,18 +335,51 @@ export default class ClientAppStatusService {
                 }
             }
 
-            // --- Formato final
-            const formattedZones = zonesToFormat.map(zone => ({
-                name: zone.name || '',
-                deliveryCost: zone.deliveryCost ?? 0,
-                schedule: filterSchedule(zone.schedule || {}),
-            }));
-
-            const closedDates = computeClosedDates({
+            // --- Dias bloqueados: feriados + fechas puntuales → set de día-de-semana a deshabilitar
+            // Si el próximo <weekday> cae en una fecha cerrada, se apaga ese día del schedule.
+            const closedDatesIso = computeClosedDates({
                 deliverOnHolidays: store.deliverOnHolidays !== false,
                 blockedDates: store.blockedDates || [],
                 days: 60,
             });
+            const closedSet = new Set(closedDatesIso);
+            const weekdayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            const nowLocal = new Date();
+            const base = new Date(nowLocal.getFullYear(), nowLocal.getMonth(), nowLocal.getDate());
+            const isNextOccurrenceBlocked = (dayName) => {
+                const targetIdx = weekdayNames.indexOf(String(dayName).toLowerCase());
+                if (targetIdx < 0) return false;
+                for (let i = 0; i < 7; i++) {
+                    const d = new Date(base);
+                    d.setDate(base.getDate() + i);
+                    if (d.getDay() !== targetIdx) continue;
+                    const y = d.getFullYear();
+                    const m = String(d.getMonth() + 1).padStart(2, '0');
+                    const dd = String(d.getDate()).padStart(2, '0');
+                    return closedSet.has(`${y}-${m}-${dd}`);
+                }
+                return false;
+            };
+
+            const applyClosedFilter = (scheduleObj) => {
+                if (!scheduleObj || typeof scheduleObj !== 'object') return scheduleObj;
+                const out = {};
+                Object.entries(scheduleObj).forEach(([day, cfg]) => {
+                    if (cfg?.enabled && isNextOccurrenceBlocked(day)) {
+                        out[day] = { ...cfg, enabled: false };
+                    } else {
+                        out[day] = cfg;
+                    }
+                });
+                return out;
+            };
+
+            // --- Formato final
+            const formattedZones = zonesToFormat.map(zone => ({
+                name: zone.name || '',
+                deliveryCost: zone.deliveryCost ?? 0,
+                schedule: applyClosedFilter(filterSchedule(zone.schedule || {})),
+            }));
 
             return {
                 success: true,
@@ -358,7 +391,6 @@ export default class ClientAppStatusService {
                     paymentFees: store.paymentFees ?? {},
                     taxPercent: Number.isFinite(Number(store.taxPercent)) ? Number(store.taxPercent) : 19,
                     deliveryZones: formattedZones,
-                    closedDates,
                 }
             };
 

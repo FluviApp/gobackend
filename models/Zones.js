@@ -36,6 +36,11 @@ const zoneSchema = new Schema(
             enum: ['comuna', 'area'],
             required: true,
         },
+        name: {
+            type: String,
+            trim: true,
+            default: '',
+        },
         comuna: {
             type: String,
             trim: true,

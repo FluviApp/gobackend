@@ -128,6 +128,8 @@ const orderSchema = new Schema(
         paymentFeeValue: { type: Number, default: 0 },
         taxPercent: { type: Number, default: 0 },
         taxAmount: { type: Number, default: 0 },
+        shippingCost: { type: Number, default: 0 },
+        zoneId: { type: mongoose.Schema.Types.ObjectId, ref: 'Zones', default: null },
         discountCode: { type: String, default: '' },
         discountCodeId: { type: mongoose.Schema.Types.ObjectId, ref: 'DiscountCodes', default: null },
         discountType: { type: String, enum: ['none', 'percent', 'fixed'], default: 'none' },

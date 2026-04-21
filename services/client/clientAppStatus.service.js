@@ -336,6 +336,7 @@ export default class ClientAppStatusService {
 
             // --- Formato final
             const formattedZones = zonesToFormat.map(zone => ({
+                name: zone.name || '',
                 deliveryCost: zone.deliveryCost ?? 0,
                 schedule: filterSchedule(zone.schedule || {}),
             }));

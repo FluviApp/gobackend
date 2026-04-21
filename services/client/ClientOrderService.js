@@ -268,21 +268,26 @@ export default class ClientOrderService {
                 notificationToken: user.token,
             };
 
-            // 🚚 Dealer por zona (si aplica)
+            // 🚚 Zona: dealer + costo de envío (fuente de verdad del servidor)
+            let shippingCost = 0;
             if (data.zoneId) {
                 const zone = await Zones.findById(data.zoneId).lean();
-                if (zone?.dealerId) {
-                    const dealer = await Dealers.findById(zone.dealerId).lean();
-                    if (dealer) {
-                        console.log('🚚 Dealer asignado automáticamente:', dealer.name);
-                        data.deliveryPerson = { id: dealer._id.toString(), name: dealer.name };
+                if (zone) {
+                    shippingCost = Number(zone.deliveryCost) || 0;
+                    if (zone.dealerId) {
+                        const dealer = await Dealers.findById(zone.dealerId).lean();
+                        if (dealer) {
+                            console.log('🚚 Dealer asignado automáticamente:', dealer.name);
+                            data.deliveryPerson = { id: dealer._id.toString(), name: dealer.name };
+                        } else {
+                            console.log('⚠️ No se encontró dealer con ese dealerId:', zone.dealerId);
+                        }
                     } else {
-                        console.log('⚠️ No se encontró dealer con ese dealerId:', zone.dealerId);
+                        console.log('⚠️ La zona no tiene dealer asignado');
                     }
-                } else {
-                    console.log('⚠️ La zona no tiene dealer asignado');
                 }
             }
+            data.shippingCost = shippingCost;
 
             // 🎟️ Re-validar y aplicar código de descuento server-side
             let appliedDiscount = null;
@@ -303,7 +308,7 @@ export default class ClientOrderService {
                 const discountAmount = Number(appliedDiscount.discountAmount) || 0;
                 const paymentFeeAmount = Number(data.paymentFeeAmount) || 0;
                 const taxPercent = Number(data.taxPercent) || 0;
-                const taxBase = Math.max(0, subtotal - discountAmount) + paymentFeeAmount;
+                const taxBase = Math.max(0, subtotal - discountAmount) + paymentFeeAmount + shippingCost;
                 const taxAmount = Number(((taxBase * taxPercent) / 100).toFixed(2));
                 const finalPrice = Number((taxBase + taxAmount).toFixed(2));
 
@@ -320,6 +325,14 @@ export default class ClientOrderService {
                 data.discountType = 'none';
                 data.discountValue = 0;
                 data.discountAmount = 0;
+
+                const subtotal = Number(data.price) || 0;
+                const paymentFeeAmount = Number(data.paymentFeeAmount) || 0;
+                const taxPercent = Number(data.taxPercent) || 0;
+                const taxBase = subtotal + paymentFeeAmount + shippingCost;
+                const taxAmount = Number(((taxBase * taxPercent) / 100).toFixed(2));
+                data.taxAmount = taxAmount;
+                data.finalPrice = Number((taxBase + taxAmount).toFixed(2));
             }
 
             // 🧾 Crear pedido

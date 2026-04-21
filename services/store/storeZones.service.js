@@ -93,6 +93,7 @@ export default class StoreZonesService {
                 {
                     $set: {
                         type: data.type,
+                        name: data.name || '',
                         comuna: data.comuna,
                         polygon: cleanPolygon,
                         deliveryCost: parseFloat(data.deliveryCost),

@@ -31,6 +31,7 @@ export default class StoreOrdersService {
         endDate,
         status,
         transferPay,
+        paymentMethod,
         deliveryType, // 👈 nuevo param
     }) => {
         console.log('🧪 startDate:', startDate);
@@ -101,6 +102,11 @@ export default class StoreOrdersService {
             if (typeof transferPay !== 'undefined' && transferPay !== null && transferPay !== '') {
                 const tf = (typeof transferPay === 'string') ? transferPay === 'true' : !!transferPay;
                 query.transferPay = tf;
+            }
+
+            // Filtro por metodo de pago
+            if (paymentMethod) {
+                query.paymentMethod = paymentMethod;
             }
 
             const options = {

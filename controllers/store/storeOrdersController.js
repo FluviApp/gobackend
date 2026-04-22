@@ -13,6 +13,7 @@ export default class StoreOrdersController {
                 endDate,
                 status,
                 transferPay,
+                paymentMethod,
                 deliveryType
             } = req.query;
 
@@ -26,6 +27,7 @@ export default class StoreOrdersController {
                 endDate,
                 status,
                 transferPay,
+                paymentMethod,
                 deliveryType
             });
 

@@ -64,6 +64,7 @@ export default class ClientProductsService {
                 detail: 1,
                 priceBase: 1,
                 priceDiscount: 1,
+                priceMayorista: 1,
                 images: { $slice: 1 },
                 available: 1,
                 variants: 1,

@@ -46,6 +46,10 @@ const productSchema = new Schema(
             type: Number,
             default: 0,
         },
+        priceMayorista: {
+            type: Number,
+            default: 0,
+        },
         images: [{ type: String }], // general product images (optional)
         variants: [variantSchema],
         isFeatured: {

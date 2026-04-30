@@ -361,7 +361,6 @@ export default class ClientAppStatusService {
                 return false;
             };
 
-            const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
             const sortHoursAsc = (hoursObj) => {
                 if (!hoursObj || typeof hoursObj !== 'object') return hoursObj;
                 const entries = Object.entries(hoursObj).sort(([a], [b]) => a.localeCompare(b));
@@ -371,12 +370,8 @@ export default class ClientAppStatusService {
             };
             const applyClosedFilter = (scheduleObj) => {
                 if (!scheduleObj || typeof scheduleObj !== 'object') return scheduleObj;
-                const sortedDayEntries = Object.entries(scheduleObj).sort(([a], [b]) => {
-                    const ia = dayOrder.indexOf(a); const ib = dayOrder.indexOf(b);
-                    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
-                });
                 const out = {};
-                sortedDayEntries.forEach(([day, cfg]) => {
+                Object.entries(scheduleObj).forEach(([day, cfg]) => {
                     const cfgWithSortedHours = cfg?.hours
                         ? { ...cfg, hours: sortHoursAsc(cfg.hours) }
                         : cfg;

@@ -28,6 +28,7 @@ import StoreDiscountCodesRoutes from './routes/store/storeDiscountCodesRoute.js'
 import StoreInfoRoutes from './routes/store/storeInfo.routes.js';
 import StoreTransfersRoutes from './routes/store/storeTransfers.routes.js';
 import StoreMetricsRoutes from './routes/store/storeMetricsRoutes.js'; // 📊 NUEVO
+import StoreEmailsRoutes from './routes/store/storeEmailsRoute.js';
 
 //CLIENTE
 import ClientAppStatusRoutes from './routes/client/ClientAppStatusRoutes.js';
@@ -105,6 +106,7 @@ app.use('/api/store', StoreDiscountCodesRoutes);
 app.use('/api/store', StoreInfoRoutes);
 app.use('/api/store', StoreTransfersRoutes);
 app.use('/api/store/metrics', StoreMetricsRoutes); // 📊 NUEVO
+app.use('/api/store', StoreEmailsRoutes);
 
 
 // Rutas del cliente

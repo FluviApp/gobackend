@@ -56,6 +56,11 @@ export default class StoreEmailsService {
         `;
     };
 
+    validateEmail = (email) => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    };
+
     async sendCustomEmail({ storeId, recipientEmail, recipientName, subject, message }) {
         try {
             if (!storeId || !recipientEmail || !subject || !message) {
@@ -65,9 +70,19 @@ export default class StoreEmailsService {
                 };
             }
 
+            const trimmedEmail = recipientEmail.trim();
+
+            // Validar formato de email
+            if (!this.validateEmail(trimmedEmail)) {
+                return {
+                    success: false,
+                    message: `El email "${trimmedEmail}" no tiene un formato válido`,
+                };
+            }
+
             const emailRecord = await StoreEmails.create({
                 storeId,
-                recipientEmail: recipientEmail.trim(),
+                recipientEmail: trimmedEmail,
                 recipientName: (recipientName || '').trim(),
                 subject: subject.trim(),
                 message: message.trim(),
@@ -80,7 +95,7 @@ export default class StoreEmailsService {
 
                 const response = await resend.emails.send({
                     from: 'Fluvi <hola@fluvi.cl>',
-                    to: recipientEmail.trim(),
+                    to: trimmedEmail,
                     subject: subject.trim(),
                     html,
                 });
@@ -90,7 +105,7 @@ export default class StoreEmailsService {
                     emailRecord.sentAt = new Date();
                     await emailRecord.save();
 
-                    console.log('✅ Correo enviado exitosamente a:', recipientEmail);
+                    console.log('✅ Correo enviado exitosamente a:', trimmedEmail);
                     return {
                         success: true,
                         message: 'Correo enviado exitosamente',
@@ -142,16 +157,32 @@ export default class StoreEmailsService {
                 };
             }
 
+            // Filtrar clientes con emails válidos
+            const validClients = clients.filter(client => this.validateEmail(client.email));
+            const invalidEmails = clients.filter(client => !this.validateEmail(client.email));
+
+            if (validClients.length === 0) {
+                return {
+                    success: false,
+                    message: 'Ninguno de los clientes tiene un email válido',
+                };
+            }
+
+            if (invalidEmails.length > 0) {
+                console.warn(`⚠️ Se encontraron ${invalidEmails.length} emails inválidos que serán ignorados:`, invalidEmails.map(c => c.email));
+            }
+
             const results = {
                 sent: 0,
                 failed: 0,
                 errors: [],
+                skipped: invalidEmails.length,
             };
 
             const resend = getResendClient();
             const html = this.getEmailTemplate(message.trim());
 
-            for (const client of clients) {
+            for (const client of validClients) {
                 try {
                     const emailRecord = await StoreEmails.create({
                         storeId,
@@ -190,11 +221,12 @@ export default class StoreEmailsService {
 
             return {
                 success: results.failed === 0,
-                message: `Correos enviados: ${results.sent}/${clients.length}`,
+                message: `Correos enviados: ${results.sent}/${validClients.length}${results.skipped > 0 ? ` (${results.skipped} ignorados por email inválido)` : ''}`,
                 data: {
                     sent: results.sent,
                     failed: results.failed,
-                    total: clients.length,
+                    skipped: results.skipped,
+                    total: validClients.length,
                     errors: results.errors,
                 },
             };

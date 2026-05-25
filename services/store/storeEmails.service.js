@@ -34,56 +34,25 @@ export default class StoreEmailsService {
 
     getEmailTemplate = (message, storeName = 'Fluvi') => {
         return `
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <style>
-                    body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif; background-color: #f5f7fa; }
-                </style>
-            </head>
-            <body style="margin: 0; padding: 0; background-color: #f5f7fa;">
-                <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <!-- Header con gradiente -->
-                    <div style="background: linear-gradient(135deg, #0099FF 0%, #0077CC 100%); border-radius: 12px 12px 0 0; padding: 40px 30px; text-align: center;">
-                        <div style="font-size: 48px; margin-bottom: 10px;">💧</div>
-                        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: 600;">${storeName}</h1>
-                        <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0 0; font-size: 14px;">Notificación importante</p>
-                    </div>
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #fefefe; border-radius: 12px; padding: 24px; border: 1px solid #eee;">
+                <h2 style="color: #0099FF; margin-top: 0;">📢 Notificación de ${storeName}</h2>
 
-                    <!-- Contenido principal -->
-                    <div style="background-color: #ffffff; padding: 40px 30px; border-radius: 0 0 12px 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-                        <!-- Mensaje principal -->
-                        <div style="color: #2c3e50; line-height: 1.8; font-size: 16px;">
-                            ${message.split('\n').map((line, idx) => {
-                                const trimmed = line.trim();
-                                if (!trimmed) return '<div style="height: 12px;"></div>';
-                                return `<p style="margin: 0 0 16px 0; color: #2c3e50;">${trimmed}</p>`;
-                            }).join('')}
-                        </div>
-
-                        <!-- Divisor -->
-                        <div style="margin: 30px 0; border-top: 1px solid #e8eef7;"></div>
-
-                        <!-- Footer -->
-                        <div style="background-color: #f8fafc; border-radius: 8px; padding: 20px; text-align: center;">
-                            <p style="font-size: 13px; color: #7f8fa3; margin: 0; line-height: 1.6;">
-                                <strong>${storeName}</strong><br>
-                                Este es un correo automático. Por favor no respondas a este mensaje.
-                            </p>
-                        </div>
-                    </div>
-
-                    <!-- Copyright -->
-                    <div style="text-align: center; margin-top: 20px; padding: 0 30px;">
-                        <p style="font-size: 12px; color: #95a5a6; margin: 0;">
-                            © ${new Date().getFullYear()} ${storeName}. Todos los derechos reservados.
-                        </p>
-                    </div>
+                <div style="font-size: 16px; color: #333; line-height: 1.6;">
+                    ${message.split('\n').map(line => {
+                        const trimmed = line.trim();
+                        if (!trimmed) return '<p style="margin: 12px 0;">&nbsp;</p>';
+                        return `<p style="margin: 12px 0; color: #333;">${trimmed}</p>`;
+                    }).join('')}
                 </div>
-            </body>
-            </html>
+
+                <div style="margin-top: 24px; background: #f1faff; padding: 16px; border-radius: 8px;">
+                    <p style="font-size: 14px; color: #0099FF; margin: 0;">✨ Gracias por confiar en ${storeName} 💧</p>
+                </div>
+
+                <p style="font-size: 12px; color: #aaa; margin-top: 24px; border-top: 1px solid #eee; padding-top: 16px;">
+                    Este correo fue generado automáticamente. No respondas a esta dirección.
+                </p>
+            </div>
         `;
     };
 

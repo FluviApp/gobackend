@@ -141,7 +141,8 @@ export default class StoreClientsService {
         registrationDateFrom = null,
         registrationDateTo = null,
         minSpent = null,
-        maxSpent = null
+        maxSpent = null,
+        neverPurchased = false
     }) => {
         try {
             if (!storeId) {
@@ -201,14 +202,19 @@ export default class StoreClientsService {
                     }
                 },
 
-                // Stage 6: Filtrar por inactividad (último pedido)
-                ...(inactivityDays !== null ? [{
+                // Stage 6a: Solo clientes que NUNCA han comprado (filtro aparte)
+                ...(neverPurchased ? [{
+                    $match: { orders: { $exists: false } }
+                }] : []),
+
+                // Stage 6b: Filtrar por inactividad — solo clientes CON historial
+                // de compra cuyo último pedido es anterior al corte. Los que nunca
+                // compraron se excluyen aquí (tienen su propio filtro).
+                ...(inactivityDays !== null && !neverPurchased ? [{
                     $match: {
-                        $expr: {
-                            $lt: [
-                                { $ifNull: ['$orders.lastOrderDate', new Date(0)] },
-                                new Date(Date.now() - inactivityDays * 24 * 60 * 60 * 1000)
-                            ]
+                        'orders.lastOrderDate': {
+                            $exists: true,
+                            $lt: new Date(Date.now() - inactivityDays * 24 * 60 * 60 * 1000)
                         }
                     }
                 }] : []),
@@ -232,6 +238,7 @@ export default class StoreClientsService {
                         name: 1,
                         email: 1,
                         phone: 1,
+                        address: 1,
                         block: 1,
                         createdAt: 1,
                         totalSpent: { $ifNull: ['$orders.totalSpent', 0] },
@@ -245,7 +252,7 @@ export default class StoreClientsService {
             ];
 
             const clients = await Client.aggregate(pipeline).exec();
-            console.log(`✅ Filtro clientes — storeId: ${storeId}, inactividad: ${inactivityDays}d, zonas: ${zones.length}, encontrados: ${clients.length}`);
+            console.log(`✅ Filtro clientes — storeId: ${storeId}, inactividad: ${inactivityDays}d, nuncaCompraron: ${neverPurchased}, zonas: ${zones.length}, encontrados: ${clients.length}`);
 
             return {
                 success: true,

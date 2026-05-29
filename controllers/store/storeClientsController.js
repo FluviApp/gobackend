@@ -76,7 +76,8 @@ export default class StoreClientsController {
                 registrationDateFrom,
                 registrationDateTo,
                 minSpent,
-                maxSpent
+                maxSpent,
+                neverPurchased
             } = req.query;
 
             if (!storeId) {
@@ -94,6 +95,7 @@ export default class StoreClientsController {
                 registrationDateTo: registrationDateTo || null,
                 minSpent: minSpent ? parseFloat(minSpent) : null,
                 maxSpent: maxSpent ? parseFloat(maxSpent) : null,
+                neverPurchased: neverPurchased === 'true' || neverPurchased === true,
             });
 
             return res.status(response.success ? 200 : 400).json(response);

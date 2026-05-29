@@ -100,7 +100,13 @@ export default class StoreEmailsService {
                     html,
                 });
 
-                if (response?.id) {
+                // El SDK de Resend devuelve { data: { id }, error }
+                const sentId = response?.data?.id || response?.id;
+                if (response?.error) {
+                    throw new Error(response.error.message || JSON.stringify(response.error));
+                }
+
+                if (sentId) {
                     emailRecord.status = 'sent';
                     emailRecord.sentAt = new Date();
                     await emailRecord.save();
@@ -200,7 +206,13 @@ export default class StoreEmailsService {
                         html,
                     });
 
-                    if (response?.id) {
+                    // El SDK de Resend devuelve { data: { id }, error }
+                    const sentId = response?.data?.id || response?.id;
+                    if (response?.error) {
+                        throw new Error(response.error.message || JSON.stringify(response.error));
+                    }
+
+                    if (sentId) {
                         emailRecord.status = 'sent';
                         emailRecord.sentAt = new Date();
                         await emailRecord.save();

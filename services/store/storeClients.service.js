@@ -160,16 +160,12 @@ export default class StoreClientsService {
                 ...(zones && zones.length > 0 ? [{ $match: { block: { $in: zones } } }] : []),
 
                 // Stage 3: Filtrar por fecha de registro
-                {
+                ...(registrationDateFrom || registrationDateTo ? [{
                     $match: {
                         ...(registrationDateFrom && { createdAt: { $gte: new Date(registrationDateFrom) } }),
-                        ...(registrationDateTo && {
-                            createdAt: registrationDateTo
-                                ? { ...(registrationDateFrom ? { $gte: new Date(registrationDateFrom) } : {}), $lte: new Date(registrationDateTo) }
-                                : undefined
-                        }),
-                    },
-                },
+                        ...(registrationDateTo && { createdAt: { $lte: new Date(registrationDateTo) } })
+                    }
+                }] : []),
 
                 // Stage 4: Hacer lookup con Orders para obtener datos de compras
                 {
@@ -248,7 +244,9 @@ export default class StoreClientsService {
                 { $sort: { createdAt: -1 } }
             ];
 
+            console.log('🔍 Pipeline de agregación:', JSON.stringify(pipeline, null, 2));
             const clients = await Client.aggregate(pipeline).exec();
+            console.log('✅ Clientes encontrados:', clients.length);
 
             return {
                 success: true,

@@ -170,20 +170,20 @@ export default class StoreClientsService {
                 // Stage 4: Hacer lookup con Orders para obtener datos de compras
                 {
                     $lookup: {
-                        from: 'orders',
+                        from: 'order', // ⚠️ La colección real es 'order' (singular), ver Orders.js
                         let: { clientId: '$_id' },
                         pipeline: [
                             {
                                 $match: {
                                     $expr: { $eq: ['$customer.id', '$$clientId'] },
                                     storeId: storeId,
-                                    status: { $in: ['entregado', 'confirmado'] } // Solo órdenes completadas/confirmadas
+                                    status: { $ne: 'cancelado' } // Cualquier pedido no cancelado
                                 }
                             },
                             {
                                 $group: {
                                     _id: null,
-                                    totalSpent: { $sum: '$totalPrice' },
+                                    totalSpent: { $sum: { $ifNull: ['$finalPrice', '$price'] } },
                                     lastOrderDate: { $max: '$createdAt' },
                                     orderCount: { $sum: 1 }
                                 }
@@ -244,9 +244,8 @@ export default class StoreClientsService {
                 { $sort: { createdAt: -1 } }
             ];
 
-            console.log('🔍 Pipeline de agregación:', JSON.stringify(pipeline, null, 2));
             const clients = await Client.aggregate(pipeline).exec();
-            console.log('✅ Clientes encontrados:', clients.length);
+            console.log(`✅ Filtro clientes — storeId: ${storeId}, inactividad: ${inactivityDays}d, zonas: ${zones.length}, encontrados: ${clients.length}`);
 
             return {
                 success: true,

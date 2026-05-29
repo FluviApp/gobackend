@@ -252,7 +252,27 @@ export default class DeliveryOrdersService {
                 ]
             }).sort({ deliveryDate: 1, 'deliverySchedule.hour': 1 });
 
-            return orders;
+            // Enriquecer con info de la tienda (nombre e imagen) para el front
+            const storeIds = [...new Set(orders.map(o => o.storeId?.toString()))].filter(Boolean);
+            const stores = await Stores.find(
+                { _id: { $in: storeIds } },
+                { name: 1, image: 1 }
+            );
+
+            const storeMap = {};
+            for (const store of stores) {
+                storeMap[store._id.toString()] = {
+                    name: store.name,
+                    image: store.image,
+                };
+            }
+
+            const enrichedOrders = orders.map(order => ({
+                ...order.toObject(),
+                storeInfo: storeMap[order.storeId?.toString()] || null,
+            }));
+
+            return enrichedOrders;
         } catch (error) {
             console.error('❌ Error en getActiveOrdersByDeliveryId:', error);
             throw error;

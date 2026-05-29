@@ -1,5 +1,6 @@
 import connectMongoDB from '../../libs/mongoose.js';
 import Client from '../../models/Clients.js';
+import Orders from '../../models/Orders.js';
 
 export default class StoreClientsService {
     constructor() {
@@ -129,6 +130,136 @@ export default class StoreClientsService {
             return {
                 success: false,
                 message: 'Error inesperado al eliminar cliente',
+            };
+        }
+    };
+
+    getFilteredClients = async ({
+        storeId,
+        zones = [],
+        inactivityDays = null,
+        registrationDateFrom = null,
+        registrationDateTo = null,
+        minSpent = null,
+        maxSpent = null
+    }) => {
+        try {
+            if (!storeId) {
+                return {
+                    success: false,
+                    message: 'storeId es obligatorio',
+                };
+            }
+
+            // Construir pipeline de agregación
+            const pipeline = [
+                // Stage 1: Filtrar por storeId
+                { $match: { storeId } },
+
+                // Stage 2: Filtrar por zona (block)
+                ...(zones && zones.length > 0 ? [{ $match: { block: { $in: zones } } }] : []),
+
+                // Stage 3: Filtrar por fecha de registro
+                {
+                    $match: {
+                        ...(registrationDateFrom && { createdAt: { $gte: new Date(registrationDateFrom) } }),
+                        ...(registrationDateTo && {
+                            createdAt: registrationDateTo
+                                ? { ...(registrationDateFrom ? { $gte: new Date(registrationDateFrom) } : {}), $lte: new Date(registrationDateTo) }
+                                : undefined
+                        }),
+                    },
+                },
+
+                // Stage 4: Hacer lookup con Orders para obtener datos de compras
+                {
+                    $lookup: {
+                        from: 'orders',
+                        let: { clientId: '$_id' },
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: { $eq: ['$customer.id', '$$clientId'] },
+                                    storeId: storeId,
+                                    status: { $in: ['entregado', 'confirmado'] } // Solo órdenes completadas/confirmadas
+                                }
+                            },
+                            {
+                                $group: {
+                                    _id: null,
+                                    totalSpent: { $sum: '$totalPrice' },
+                                    lastOrderDate: { $max: '$createdAt' },
+                                    orderCount: { $sum: 1 }
+                                }
+                            }
+                        ],
+                        as: 'orders'
+                    }
+                },
+
+                // Stage 5: Descomponer el array de órdenes
+                {
+                    $unwind: {
+                        path: '$orders',
+                        preserveNullAndEmptyArrays: true
+                    }
+                },
+
+                // Stage 6: Filtrar por inactividad (último pedido)
+                ...(inactivityDays !== null ? [{
+                    $match: {
+                        $expr: {
+                            $lt: [
+                                { $ifNull: ['$orders.lastOrderDate', new Date(0)] },
+                                new Date(Date.now() - inactivityDays * 24 * 60 * 60 * 1000)
+                            ]
+                        }
+                    }
+                }] : []),
+
+                // Stage 7: Filtrar por monto gastado
+                ...(minSpent !== null || maxSpent !== null ? [{
+                    $match: {
+                        $expr: {
+                            $and: [
+                                minSpent !== null ? { $gte: [{ $ifNull: ['$orders.totalSpent', 0] }, minSpent] } : true,
+                                maxSpent !== null ? { $lte: [{ $ifNull: ['$orders.totalSpent', 0] }, maxSpent] } : true,
+                            ]
+                        }
+                    }
+                }] : []),
+
+                // Stage 8: Proyectar campos importantes
+                {
+                    $project: {
+                        _id: 1,
+                        name: 1,
+                        email: 1,
+                        phone: 1,
+                        block: 1,
+                        createdAt: 1,
+                        totalSpent: { $ifNull: ['$orders.totalSpent', 0] },
+                        lastOrderDate: '$orders.lastOrderDate',
+                        orderCount: { $ifNull: ['$orders.orderCount', 0] }
+                    }
+                },
+
+                // Stage 9: Ordenar
+                { $sort: { createdAt: -1 } }
+            ];
+
+            const clients = await Client.aggregate(pipeline).exec();
+
+            return {
+                success: true,
+                message: `Se encontraron ${clients.length} clientes que cumplen los criterios`,
+                data: clients,
+            };
+        } catch (error) {
+            console.error('❌ Servicio - Error al filtrar clientes:', error);
+            return {
+                success: false,
+                message: 'Error al filtrar clientes',
             };
         }
     };

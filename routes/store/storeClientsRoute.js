@@ -5,6 +5,7 @@ const router = express.Router();
 const storeClientsController = new StoreClientsController();
 
 
+router.get('/clients/filter', storeClientsController.getFilteredClients);
 router.get('/clients', storeClientsController.getAllClients);
 router.post('/clients', storeClientsController.createClient);
 router.put('/clients/:id', storeClientsController.updateClient);

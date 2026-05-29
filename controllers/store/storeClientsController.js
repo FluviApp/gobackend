@@ -66,4 +66,43 @@ export default class StoreClientsController {
             });
         }
     };
+
+    getFilteredClients = async (req, res) => {
+        try {
+            const {
+                storeId,
+                zones,
+                inactivityDays,
+                registrationDateFrom,
+                registrationDateTo,
+                minSpent,
+                maxSpent
+            } = req.query;
+
+            if (!storeId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'storeId es obligatorio',
+                });
+            }
+
+            const response = await storeClientsService.getFilteredClients({
+                storeId,
+                zones: zones ? zones.split(',') : [],
+                inactivityDays: inactivityDays ? parseInt(inactivityDays) : null,
+                registrationDateFrom: registrationDateFrom || null,
+                registrationDateTo: registrationDateTo || null,
+                minSpent: minSpent ? parseFloat(minSpent) : null,
+                maxSpent: maxSpent ? parseFloat(maxSpent) : null,
+            });
+
+            return res.status(response.success ? 200 : 400).json(response);
+        } catch (error) {
+            console.error('❌ Controller - Error al filtrar clientes:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Error inesperado al filtrar clientes',
+            });
+        }
+    };
 }

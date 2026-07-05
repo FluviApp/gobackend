@@ -33,6 +33,7 @@ export default class StoreOrdersService {
         transferPay,
         paymentMethod,
         deliveryType, // 👈 nuevo param
+        search, // 👈 búsqueda por nombre/teléfono/dirección/email del cliente
     }) => {
         console.log('🧪 startDate:', startDate);
         console.log('🧪 endDate:', endDate);
@@ -107,6 +108,27 @@ export default class StoreOrdersService {
             // Filtro por metodo de pago
             if (paymentMethod) {
                 query.paymentMethod = paymentMethod;
+            }
+
+            // 🔎 Búsqueda por nombre, teléfono, dirección o email del cliente
+            if (search && String(search).trim() !== '') {
+                const escaped = String(search).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const rx = new RegExp(escaped, 'i');
+                const searchOr = [
+                    { 'customer.name': rx },
+                    { 'customer.phone': rx },
+                    { 'customer.address': rx },
+                    { 'customer.email': rx },
+                ];
+
+                // Si ya existe un $or (por el filtro de fechas), combinarlos con $and
+                // para no pisar una condición con la otra.
+                if (query.$or) {
+                    query.$and = [{ $or: query.$or }, { $or: searchOr }];
+                    delete query.$or;
+                } else {
+                    query.$or = searchOr;
+                }
             }
 
             const options = {

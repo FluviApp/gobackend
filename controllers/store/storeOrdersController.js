@@ -14,7 +14,8 @@ export default class StoreOrdersController {
                 status,
                 transferPay,
                 paymentMethod,
-                deliveryType
+                deliveryType,
+                search
             } = req.query;
 
             console.log('🧪 Params recibidos:', req.query); // Verifica todos los params
@@ -28,7 +29,8 @@ export default class StoreOrdersController {
                 status,
                 transferPay,
                 paymentMethod,
-                deliveryType
+                deliveryType,
+                search
             });
 
             // Log detallado de la respuesta

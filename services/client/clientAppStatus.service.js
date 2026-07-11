@@ -395,6 +395,8 @@ export default class ClientAppStatusService {
                 success: true,
                 message: 'Datos de tienda obtenidos correctamente',
                 data: {
+                    name: store.name || '',
+                    image: store.image || '',
                     paymentMethods: Array.isArray(store.paymentMethods)
                         ? store.paymentMethods
                         : (store.paymentmethod ?? []),

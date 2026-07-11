@@ -20,58 +20,21 @@ export default class DeliveryOrdersService {
 
             console.log('📦 Buscando pedidos para tiendas:', allowedStores);
 
-            const now = new Date();
-            const isBefore2PM = now.getHours() < 14;
-
-            const today = new Date();
-            today.setHours(23, 59, 59, 999);
+            // Fin del día de HOY en hora de Chile → UTC. Incluye pendientes de hoy y anteriores.
+            const endOfTodayUtc = dayjs().tz(TZ).endOf('day').utc().toDate();
 
             const query = {
                 storeId: { $in: allowedStores },
                 status: { $nin: ['entregado', 'devuelto', 'cancelado'] },
-                deliveryDate: { $lte: today },
+                deliveryDate: { $lte: endOfTodayUtc },
                 deliveryType: 'domicilio',
             };
 
             console.log('🔍 Consulta Mongo:', JSON.stringify(query, null, 2));
 
-            let orders = await Order.find(query).sort({ createdAt: -1 });
-
-            // 🕑 Filtro por hora (solo antes de las 14:00)
-            if (isBefore2PM) {
-                console.log('⏰ Antes de las 14:00 → mostrando solo pedidos con hora antes de las 14:00');
-
-                const cutoffMinutes = 14 * 60; // 14:00 = 840 minutos
-
-                const parseHour = (hourStr) => {
-                    if (!hourStr) return 0;
-                    let clean = hourStr.trim().toUpperCase();
-
-                    // Si tiene AM/PM → formato 12h
-                    const hasAM = clean.includes('AM');
-                    const hasPM = clean.includes('PM');
-
-                    // Limpieza de texto
-                    clean = clean.replace(/[^\d:]/g, '');
-
-                    let [h, m] = clean.split(':').map(Number);
-                    if (isNaN(h)) return 0;
-                    if (isNaN(m)) m = 0;
-
-                    if (hasPM && h !== 12) h += 12;
-                    if (hasAM && h === 12) h = 0;
-
-                    // Si no tiene AM/PM y es formato 24h → lo dejamos tal cual
-                    return h * 60 + m;
-                };
-
-                orders = orders.filter(order => {
-                    const hourStr = order.deliverySchedule?.hour;
-                    return parseHour(hourStr) < cutoffMinutes;
-                });
-            } else {
-                console.log('🌇 Después de las 14:00 → mostrando todos los pedidos');
-            }
+            // Se muestran TODOS los pedidos pendientes del día sin importar la hora actual.
+            // (Se eliminó el corte de las 14:00 que ocultaba entregas de la tarde.)
+            const orders = await Order.find(query).sort({ deliveryDate: 1, 'deliverySchedule.hour': 1 });
 
             console.log(`✅ Se encontraron ${orders.length} pedidos`);
 

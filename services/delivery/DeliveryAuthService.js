@@ -120,6 +120,32 @@ export default class DeliveryAuthService {
         }
     };
 
+    // Registra (sin duplicar) el token de Expo push del dispositivo del repartidor.
+    registerPushToken = async ({ dealerId, token }) => {
+        try {
+            if (!dealerId || !token || !String(token).startsWith('ExponentPushToken')) {
+                return { success: false, message: 'dealerId o token inválido' };
+            }
+            await Dealers.findByIdAndUpdate(dealerId, { $addToSet: { pushTokens: token } });
+            return { success: true, message: 'Token registrado' };
+        } catch (error) {
+            console.error('❌ DeliveryAuthService - error en registerPushToken:', error);
+            return { success: false, message: 'Error al registrar token' };
+        }
+    };
+
+    // Elimina un token (al cerrar sesión) para no seguir notificando a ese dispositivo.
+    removePushToken = async ({ dealerId, token }) => {
+        try {
+            if (!dealerId || !token) return { success: false, message: 'dealerId o token inválido' };
+            await Dealers.findByIdAndUpdate(dealerId, { $pull: { pushTokens: token } });
+            return { success: true, message: 'Token eliminado' };
+        } catch (error) {
+            console.error('❌ DeliveryAuthService - error en removePushToken:', error);
+            return { success: false, message: 'Error al eliminar token' };
+        }
+    };
+
     updateDelivery = async (id, updateData) => {
         try {
             if ('password' in updateData) {

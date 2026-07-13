@@ -10,6 +10,8 @@ const dealerSchema = new Schema(
         password: { type: String, required: true },
         storeId: { type: String, required: true },
         zoneId: { type: String, default: '' },
+        // Tokens de Expo push (uno por dispositivo donde inició sesión el repartidor).
+        pushTokens: { type: [String], default: [] },
     },
     { timestamps: true }
 );

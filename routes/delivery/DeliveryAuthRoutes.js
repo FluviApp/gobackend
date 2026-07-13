@@ -9,5 +9,7 @@ router.post('/register', deliveryAuthController.register);
 router.post('/recover-password', deliveryAuthController.recoverPassword);
 router.get('/me/:id', deliveryAuthController.getDeliveryById);
 router.put('/me/:id', deliveryAuthController.updateDelivery);
+router.post('/push-token', deliveryAuthController.registerPushToken);
+router.post('/push-token/remove', deliveryAuthController.removePushToken);
 
 export default router;

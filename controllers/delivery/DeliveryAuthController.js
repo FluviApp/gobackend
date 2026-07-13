@@ -62,6 +62,28 @@ export default class DeliveryAuthController {
         }
     };
 
+    registerPushToken = async (req, res) => {
+        try {
+            const { dealerId, token } = req.body;
+            const response = await DeliveryAuth.registerPushToken({ dealerId, token });
+            return res.status(response.success ? 200 : 400).json(response);
+        } catch (error) {
+            console.error('❌ DeliveryAuthController - error en registerPushToken:', error);
+            return res.status(500).json({ success: false, message: 'Error al registrar token' });
+        }
+    };
+
+    removePushToken = async (req, res) => {
+        try {
+            const { dealerId, token } = req.body;
+            const response = await DeliveryAuth.removePushToken({ dealerId, token });
+            return res.status(response.success ? 200 : 400).json(response);
+        } catch (error) {
+            console.error('❌ DeliveryAuthController - error en removePushToken:', error);
+            return res.status(500).json({ success: false, message: 'Error al eliminar token' });
+        }
+    };
+
     updateDelivery = async (req, res) => {
         try {
             const { id } = req.params;

@@ -3,6 +3,7 @@ import Stores from '../../models/Stores.js';
 import Notifications from '../../models/Notifications.js';
 import { sendOrderStatusUpdateEmail } from '../../utils/sendOrderStatusUpdateEmail.js';
 import { sendPushNotification } from '../../utils/sendPushNotification.js';
+import { DELIVERY_STORE_IDS } from '../../config/deliveryStores.js';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc.js';
 import timezone from 'dayjs/plugin/timezone.js';
@@ -16,7 +17,7 @@ export default class DeliveryOrdersService {
 
     getOrdersByStoreGroup = async () => {
         try {
-            const allowedStores = ['686475c9b8bfd36c37a820c3', '68697bf9c8e5172fd536738f'];
+            const allowedStores = DELIVERY_STORE_IDS;
 
             console.log('📦 Buscando pedidos para tiendas:', allowedStores);
 
@@ -118,7 +119,7 @@ export default class DeliveryOrdersService {
 
     getClosedOrdersByStoreGroup = async () => {
         try {
-            const allowedStores = ['686475c9b8bfd36c37a820c3', '68697bf9c8e5172fd536738f'];
+            const allowedStores = DELIVERY_STORE_IDS;
 
             // Calcular inicio y fin del día según hora de Chile y convertir a UTC
             const startUtc = dayjs().tz(TZ).startOf('day').utc().toDate();

@@ -4,6 +4,7 @@ import Commerce from '../../models/Commerce.js';
 import Zones from '../../models/Zones.js';
 import Stores from '../../models/Stores.js';
 import Order from '../../models/Orders.js';
+import { zonePolygon, buildComunaPolyMap } from '../../libs/geo.js';
 import computeClosedDates from '../../utils/closedDates.js';
 
 export default class ClientAppStatusService {
@@ -191,8 +192,10 @@ export default class ClientAppStatusService {
             // --- Zonas
             const zones = await Zones.find(
                 { storeId },
-                { deliveryCost: 1, schedule: 1, polygon: 1 }
+                { deliveryCost: 1, schedule: 1, polygon: 1, type: 1, comuna: 1, name: 1 }
             ).lean();
+            // Las zonas 'comuna' toman su límite del catálogo Comunas (por slug).
+            const comunaMap = await buildComunaPolyMap(zones);
             if (!zones || zones.length === 0) {
                 return { success: false, message: 'Zonas de entrega no encontradas' };
             }
@@ -204,7 +207,7 @@ export default class ClientAppStatusService {
 
             // --- Punto en polígono
             const zoneContainsPoint = (zone, plat, plon) => {
-                const poly = Array.isArray(zone?.polygon) ? zone.polygon : null;
+                const poly = zonePolygon(zone, comunaMap);
                 if (!poly || poly.length < 3) return false;
                 let inside = false;
                 for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {

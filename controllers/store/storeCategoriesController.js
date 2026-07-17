@@ -23,8 +23,9 @@ export default class StoreCategoriesController {
             console.log('🟡 req.files:', req.files); // 👈🏼 Agrega esto
             const { name, storeId } = req.body;
             const image = req.files?.image || null;
+            const imageWide = req.files?.imageWide || null;
 
-            const response = await storeCategoriesService.createCategory({ name, storeId, image });
+            const response = await storeCategoriesService.createCategory({ name, storeId, image, imageWide });
             return res.status(200).json(response);
         } catch (error) {
             console.error('❌ Controller - Error al crear categoría:', error);
@@ -41,9 +42,10 @@ export default class StoreCategoriesController {
         try {
             const { id } = req.params;
             const image = req.files?.image || null;
+            const imageWide = req.files?.imageWide || null;
             const { name, storeId } = req.body;
 
-            const response = await storeCategoriesService.updateCategory(id, { name, storeId, image });
+            const response = await storeCategoriesService.updateCategory(id, { name, storeId, image, imageWide });
             return res.status(response.success ? 200 : 400).json(response);
         } catch (error) {
             console.error('❌ Controller - Error al actualizar categoría:', error);

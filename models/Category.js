@@ -20,6 +20,11 @@ const categorySchema = new Schema(
             type: String,
             default: ''
         },
+        // Imagen rectangular (2:1) para la app nueva. La app vieja sigue usando `image` (cuadrada).
+        imageWide: {
+            type: String,
+            default: ''
+        },
     },
     {
         timestamps: { createdAt: 'createdAt', updatedAt: 'editedAt' },

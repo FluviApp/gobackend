@@ -39,8 +39,9 @@ export default class StoreCategoriesService {
         console.log('crear cat 1')
         try {
             let imagePath = '';
+            let imageWidePath = '';
 
-            // ✅ Subida a Cloudinary
+            // ✅ Subida a Cloudinary (cuadrada — app vieja)
             if (data.image) {
                 const result = await cloudinary.uploader.upload(data.image.tempFilePath || data.image.path, {
                     folder: 'categories', // nombre de carpeta en Cloudinary
@@ -49,9 +50,19 @@ export default class StoreCategoriesService {
                 console.log('📷 Imagen subida a Cloudinary:', imagePath);
             }
 
+            // ✅ Subida a Cloudinary (rectangular 2:1 — app nueva)
+            if (data.imageWide) {
+                const resultWide = await cloudinary.uploader.upload(data.imageWide.tempFilePath || data.imageWide.path, {
+                    folder: 'categories',
+                });
+                imageWidePath = resultWide.secure_url;
+                console.log('📷 Imagen rectangular subida a Cloudinary:', imageWidePath);
+            }
+
             const newCategory = new Category({
                 name: data.name.trim(),
                 image: imagePath,
+                imageWide: imageWidePath,
                 storeId: data.storeId,
             });
 
@@ -83,8 +94,9 @@ export default class StoreCategoriesService {
             }
 
             let imagePath = existing.image; // conservar la actual por defecto
+            let imageWidePath = existing.imageWide; // conservar la rectangular por defecto
 
-            // ✅ Si se envía una nueva imagen
+            // ✅ Si se envía una nueva imagen cuadrada
             if (categoryData.image) {
                 // 1. Subir nueva a Cloudinary
                 const uploadResult = await cloudinary.uploader.upload(
@@ -103,6 +115,23 @@ export default class StoreCategoriesService {
                 }
             }
 
+            // ✅ Si se envía una nueva imagen rectangular (2:1)
+            if (categoryData.imageWide) {
+                const uploadWide = await cloudinary.uploader.upload(
+                    categoryData.imageWide.tempFilePath || categoryData.imageWide.path,
+                    { folder: 'categories' }
+                );
+                imageWidePath = uploadWide.secure_url;
+
+                if (existing.imageWide && existing.imageWide.includes('res.cloudinary.com')) {
+                    const publicId = this.getPublicIdFromUrl(existing.imageWide);
+                    if (publicId) {
+                        await cloudinary.uploader.destroy(publicId);
+                        console.log('🗑 Imagen rectangular anterior eliminada de Cloudinary:', publicId);
+                    }
+                }
+            }
+
             // 3. Actualizar en MongoDB
             const updated = await Category.findByIdAndUpdate(
                 id,
@@ -110,6 +139,7 @@ export default class StoreCategoriesService {
                     name: categoryData.name,
                     storeId: categoryData.storeId,
                     image: imagePath,
+                    imageWide: imageWidePath,
                 },
                 { new: true }
             );
@@ -150,6 +180,18 @@ export default class StoreCategoriesService {
                 if (publicId) {
                     await cloudinary.uploader.destroy(publicId);
                     console.log('🗑 Imagen de categoría eliminada de Cloudinary:', publicId);
+                }
+            }
+
+            // 🔥 Eliminar imagen rectangular de Cloudinary si existe
+            if (
+                deletedCategory.imageWide &&
+                deletedCategory.imageWide.includes('res.cloudinary.com')
+            ) {
+                const publicIdWide = this.getPublicIdFromUrl(deletedCategory.imageWide);
+                if (publicIdWide) {
+                    await cloudinary.uploader.destroy(publicIdWide);
+                    console.log('🗑 Imagen rectangular de categoría eliminada de Cloudinary:', publicIdWide);
                 }
             }
 

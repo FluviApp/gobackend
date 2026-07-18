@@ -5,6 +5,7 @@ import Packs from '../../models/Packs.js';
 import Product from '../../models/Product.js';
 import Order from '../../models/Orders.js';
 import Stores from '../../models/Stores.js';
+import HeroConfig from '../../models/HeroConfig.js';
 export default class ClientHomeService {
     constructor() {
         connectMongoDB();
@@ -12,7 +13,7 @@ export default class ClientHomeService {
 
     getHomeData = async (storeId) => {
         try {
-            const [banners, categories, packs, mostSold, discounts, store] = await Promise.all([
+            const [banners, categories, packs, mostSold, discounts, store, hero] = await Promise.all([
                 Banners.find({ storeId }).sort({ createdAt: -1 }).limit(5),
                 Category.find({ storeId }).sort({ createdAt: -1 }).limit(10),
                 Packs.find({
@@ -21,7 +22,8 @@ export default class ClientHomeService {
                 }).sort({ createdAt: -1 }).limit(6),
                 this.getMostSoldProducts(storeId),
                 Product.find({ storeId, priceDiscount: { $gt: 0 } }).limit(10),
-                Stores.findById(storeId, 'phone') // Solo trae el campo `phone`
+                Stores.findById(storeId, 'phone'), // Solo trae el campo `phone`
+                HeroConfig.findOne({ storeId }).lean(), // config del hero (una por tienda)
             ]);
 
             return {
@@ -33,7 +35,8 @@ export default class ClientHomeService {
                     packs,
                     mostSold,
                     discounts,
-                    phone: store?.phone || null
+                    phone: store?.phone || null,
+                    hero: hero || null,
                 }
             };
         } catch (error) {

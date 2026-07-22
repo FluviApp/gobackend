@@ -573,6 +573,18 @@ class StoreMetricsService {
     // 🔧 Métodos auxiliares
     getDateRange = (period) => {
         const now = dayjs().tz(TZ);
+
+        // Rango personalizado: 'custom:YYYY-MM-DD:YYYY-MM-DD'
+        if (typeof period === 'string' && period.startsWith('custom:')) {
+            const [, s, e] = period.split(':');
+            if (s && e) {
+                return {
+                    startDate: dayjs.tz(s, TZ).startOf('day').toDate(),
+                    endDate: dayjs.tz(e, TZ).endOf('day').toDate(),
+                };
+            }
+        }
+
         let startDate, endDate;
 
         switch (period) {
@@ -618,6 +630,17 @@ class StoreMetricsService {
 
     getDateRangeWithGrouping = (period) => {
         const { startDate, endDate } = this.getDateRange(period);
+
+        // Rango personalizado: agrupación según el largo (diario / semanal / mensual)
+        if (typeof period === 'string' && period.startsWith('custom:')) {
+            const days = dayjs(endDate).diff(dayjs(startDate), 'day');
+            let format = '%Y-%m-%d';           // diario
+            if (days > 180) format = '%Y-%m';  // mensual
+            else if (days > 45) format = '%G-W%V'; // semanal
+            const groupBy = { $dateToString: { format, date: '$deliveredAt', timezone: TZ } };
+            return { startDate, endDate, groupBy };
+        }
+
         let groupBy;
 
         switch (period) {

@@ -1,6 +1,7 @@
 import connectMongoDB from '../../libs/mongoose.js'
 import Stores from '../../models/Stores.js'
 import User from '../../models/User.js';
+import cloudinary from '../../utils/cloudinary.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -67,20 +68,13 @@ export default class AdminStoresService {
                 throw error;
             }
 
-            // 🔥 Guardar imagen
-            const uploadDir = path.join(process.cwd(), 'public/uploads/stores');
-            fs.mkdirSync(uploadDir, { recursive: true });
-
+            // 🔥 Subir imagen a Cloudinary (persistente; el disco de Render es efímero)
             const file = storeData.image;
-            const extension = path.extname(file.name);
-            if (!extension) throw new Error('El archivo no tiene extensión válida');
-
-            const randomSuffix = Math.random().toString(36).substring(2, 8);
-            const fileName = `${Date.now()}_${randomSuffix}${extension}`;
-            const fullPath = path.join(uploadDir, fileName);
-
-            await file.mv(fullPath);
-            const imagePath = `/uploads/stores/${fileName}`;
+            const uploadResult = await cloudinary.uploader.upload(file.tempFilePath || file.path, {
+                folder: 'stores',
+            });
+            const imagePath = uploadResult.secure_url;
+            console.log('📷 Imagen de tienda subida a Cloudinary:', imagePath);
 
             // 🔧 Crear tienda
             const newStore = new Stores({
@@ -142,22 +136,22 @@ export default class AdminStoresService {
             let updatedImage = existingStore.image;
 
             if (data.image) {
-                const uploadDir = path.join(process.cwd(), 'public/uploads/stores');
-                fs.mkdirSync(uploadDir, { recursive: true });
-
+                // Subir nueva imagen a Cloudinary
                 const file = data.image;
-                const extension = path.extname(file.name);
-                if (!extension) throw new Error('El archivo no tiene extensión válida');
+                const uploadResult = await cloudinary.uploader.upload(file.tempFilePath || file.path, {
+                    folder: 'stores',
+                });
+                updatedImage = uploadResult.secure_url;
 
-                const randomSuffix = Math.random().toString(36).substring(2, 8);
-                const fileName = `${Date.now()}_${randomSuffix}${extension}`;
-                const fullPath = path.join(uploadDir, fileName);
-
-                await file.mv(fullPath);
-                updatedImage = `/uploads/stores/${fileName}`;
-
-                const oldPath = path.join(process.cwd(), 'public', existingStore.image);
-                if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+                // Borrar la anterior de Cloudinary si corresponde
+                if (existingStore.image && existingStore.image.includes('res.cloudinary.com')) {
+                    try {
+                        const parts = existingStore.image.split('/');
+                        const fileWithExt = parts[parts.length - 1];
+                        const publicId = `${parts[parts.length - 2]}/${fileWithExt.split('.')[0]}`;
+                        await cloudinary.uploader.destroy(publicId);
+                    } catch (e) { /* noop */ }
+                }
             }
 
             const updatedStore = await Stores.findByIdAndUpdate(

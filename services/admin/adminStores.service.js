@@ -2,6 +2,7 @@ import connectMongoDB from '../../libs/mongoose.js'
 import Stores from '../../models/Stores.js'
 import User from '../../models/User.js';
 import cloudinary from '../../utils/cloudinary.js';
+import { generateUniqueStoreCode } from '../../utils/storeCode.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -76,9 +77,13 @@ export default class AdminStoresService {
             const imagePath = uploadResult.secure_url;
             console.log('📷 Imagen de tienda subida a Cloudinary:', imagePath);
 
+            // 🔑 Código único de tienda (nombre + sufijo) para el ingreso por código/QR
+            const code = await generateUniqueStoreCode(storeData.name, Stores);
+
             // 🔧 Crear tienda
             const newStore = new Stores({
                 name: storeData.name,
+                code,
                 address: storeData.address,
                 admin,
                 holiday: storeData.holiday,

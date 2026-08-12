@@ -44,6 +44,7 @@ import ClientAnnouncementsRoutes from './routes/client/ClientAnnouncementsRoutes
 import ClientPacksRoutes from './routes/client/ClientPacksRoutes.js';
 import ClientZonesRoutes from './routes/client/ClientZonesRoutes.js';
 import ClientComunasRoutes from './routes/client/ClientComunasRoutes.js';
+import ClientStoresRoutes from './routes/client/ClientStoresRoutes.js';
 import ClientDiscountCodesRoutes from './routes/client/ClientDiscountCodesRoutes.js';
 import PaymentRoutes from './routes/payment/PaymentRoutes.js'
 import MercadoPagoRoutes from './routes/payment/mercadopago.routes.js'
@@ -120,6 +121,7 @@ app.use('/api/client', ClientProductsRoutes);
 app.use('/api/client', ClientHomeRoutes);
 app.use('/api/client', ClientZonesRoutes);
 app.use('/api/client', ClientComunasRoutes);
+app.use('/api/client', ClientStoresRoutes);
 app.use('/api/store', ClientComunasRoutes); // catálogo de comunas también para el admin (dropdown)
 app.use('/api/client/subcategories', ClientSubcategoriesRoutes);
 app.use('/api/client/orders', ClientOrderRoutes);

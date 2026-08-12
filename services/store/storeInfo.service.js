@@ -14,7 +14,7 @@ export default class StoreInfoService {
 
             const store = await Stores.findOne(
                 { _id: storeId },
-                { name: 1, image: 1, paymentmethod: 1, paymentFees: 1, taxPercent: 1, transferWhatsappMessage: 1 }
+                { name: 1, image: 1, code: 1, paymentmethod: 1, paymentFees: 1, taxPercent: 1, transferWhatsappMessage: 1 }
             ).lean();
             if (!store) {
                 return { success: false, message: 'Tienda no encontrada' };

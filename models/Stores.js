@@ -12,6 +12,16 @@ const storeSchema = new Schema(
             required: true,
             trim: true,
         },
+        // Código único de la tienda (nombre + sufijo). Los clientes lo usan para
+        // entrar directo a esta marca en la app (por código o QR). Visible en Ajustes.
+        code: {
+            type: String,
+            unique: true,
+            sparse: true,
+            trim: true,
+            uppercase: true,
+            index: true,
+        },
         image: {
             type: String,
             required: true,

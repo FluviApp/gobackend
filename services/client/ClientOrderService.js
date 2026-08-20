@@ -8,7 +8,7 @@ import User from '../../models/User.js';
 import crypto from 'crypto';
 import { sendOrderConfirmationEmail } from '../../utils/sendOrderConfirmationEmail.js';
 import { sendAdminNewOrderNotification } from '../../utils/sendAdminNewOrderNotification.js';
-import { sendExpoPush } from '../../utils/sendExpoPush.js';
+import { notifyOrderDealer } from '../../utils/notifyOrderDealer.js';
 import { DELIVERY_STORE_IDS } from '../../config/deliveryStores.js';
 import ClientDiscountCodesService from './ClientDiscountCodesService.js';
 
@@ -385,34 +385,8 @@ export default class ClientOrderService {
                 await sendAdminNewOrderNotification({ email: admin.mail, order: newOrder });
             }
 
-            // 🚚 Push a los repartidores: se notifica lo que ellos DEBEN ENTREGAR.
-            // Si el pedido cae en el reparto (tienda operativa + a domicilio), se avisa
-            // a TODOS los repartidores, igual que la lista "Mis pedidos" (no por tienda).
-            try {
-                const isDeliveryOrder =
-                    newOrder.deliveryType === 'domicilio' &&
-                    DELIVERY_STORE_IDS.includes(String(newOrder.storeId));
-
-                if (isDeliveryOrder) {
-                    const dealers = await Dealers.find(
-                        { pushTokens: { $exists: true, $ne: [] } },
-                        { pushTokens: 1 }
-                    );
-                    const tokens = dealers.flatMap((d) => d.pushTokens || []);
-                    if (tokens.length) {
-                        const store = await Stores.findById(newOrder.storeId, { name: 1 }).catch(() => null);
-                        const addr = newOrder.customer?.address ? ` · ${newOrder.customer.address}` : '';
-                        await sendExpoPush({
-                            tokens,
-                            title: '🚚 Nuevo pedido',
-                            body: `Nuevo pedido en ${store?.name || 'tu tienda'}${addr}`,
-                            data: { type: 'new_order', orderId: String(newOrder._id), storeId: String(newOrder.storeId) },
-                        });
-                    }
-                }
-            } catch (e) {
-                console.error('❌ Error notificando push a repartidores:', e);
-            }
+            // 🚚 Push SOLO al repartidor asignado a este pedido (por su zona), en cualquier tienda.
+            await notifyOrderDealer(newOrder);
 
             return { success: true, message: 'Pedido creado exitosamente', data: { order: newOrder, user } };
         } catch (error) {

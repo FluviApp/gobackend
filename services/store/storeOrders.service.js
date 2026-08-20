@@ -5,6 +5,7 @@ import Notifications from '../../models/Notifications.js';
 import Stores from '../../models/Stores.js';
 import { sendOrderStatusUpdateEmail } from '../../utils/sendOrderStatusUpdateEmail.js';
 import { sendPushNotification } from '../../utils/sendPushNotification.js';
+import { notifyOrderDealer } from '../../utils/notifyOrderDealer.js';
 
 // ⏰ Zona horaria Chile con dayjs
 import dayjs from 'dayjs';
@@ -342,6 +343,9 @@ export default class StoreOrdersService {
 
             const newOrder = new Orders(data);
             const saved = await newOrder.save();
+
+            // 🚚 Notificar al repartidor asignado (domicilio con repartidor), igual que en la app
+            await notifyOrderDealer(saved);
 
             return {
                 success: true,

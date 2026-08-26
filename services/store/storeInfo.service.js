@@ -14,7 +14,7 @@ export default class StoreInfoService {
 
             const store = await Stores.findOne(
                 { _id: storeId },
-                { name: 1, image: 1, code: 1, paymentmethod: 1, paymentFees: 1, taxPercent: 1, transferWhatsappMessage: 1 }
+                { name: 1, image: 1, code: 1, paymentmethod: 1, paymentFees: 1, taxPercent: 1, transferWhatsappMessage: 1, deliveryMode: 1 }
             ).lean();
             if (!store) {
                 return { success: false, message: 'Tienda no encontrada' };
@@ -34,7 +34,7 @@ export default class StoreInfoService {
         }
     }
 
-    async updateStoreInfo({ storeId, paymentFees, taxPercent, transferWhatsappMessage }) {
+    async updateStoreInfo({ storeId, paymentFees, taxPercent, transferWhatsappMessage, deliveryMode }) {
         try {
             if (!storeId) {
                 return { success: false, message: 'storeId es requerido' };
@@ -50,6 +50,10 @@ export default class StoreInfoService {
             }
             if (transferWhatsappMessage !== undefined) {
                 update.transferWhatsappMessage = typeof transferWhatsappMessage === 'string' ? transferWhatsappMessage.trim() : '';
+            }
+            if (deliveryMode !== undefined) {
+                const allowed = ['slots_chicos', 'slots_grandes', 'sin_horario'];
+                if (allowed.includes(deliveryMode)) update.deliveryMode = deliveryMode;
             }
 
             if (Object.keys(update).length === 0) {

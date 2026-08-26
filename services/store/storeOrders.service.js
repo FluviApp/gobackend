@@ -6,6 +6,7 @@ import Stores from '../../models/Stores.js';
 import { sendOrderStatusUpdateEmail } from '../../utils/sendOrderStatusUpdateEmail.js';
 import { sendPushNotification } from '../../utils/sendPushNotification.js';
 import { notifyOrderDealer } from '../../utils/notifyOrderDealer.js';
+import { startOfHour } from '../../utils/deliveryTime.js';
 
 // ⏰ Zona horaria Chile con dayjs
 import dayjs from 'dayjs';
@@ -162,7 +163,10 @@ export default class StoreOrdersService {
 
         let diff = (targetDay - todayDay + 7) % 7;
 
-        const [hour, minute] = hourString.split(':').map(Number);
+        // Tolerante a rango ("09:00 - 11:00") y a ausencia de hora (día opcional):
+        // usamos la hora de INICIO del bloque, o mediodía si no hay hora.
+        const start = startOfHour(hourString) || '12:00';
+        const [hour, minute] = start.split(':').map(Number);
         const todayAtHour = now.hour(hour).minute(minute).second(0).millisecond(0);
 
         // Si es hoy y la hora ya pasó en Chile, manda para la próxima semana
@@ -174,7 +178,8 @@ export default class StoreOrdersService {
 
     isPastHour(hourString) {
         const now = dayjs().tz(TZ);
-        const [hour, minute] = hourString.split(':').map(Number);
+        const start = startOfHour(hourString) || '12:00';
+        const [hour, minute] = start.split(':').map(Number);
         const atHour = now.hour(hour).minute(minute).second(0).millisecond(0);
         return now.isAfter(atHour);
     }
@@ -241,8 +246,11 @@ export default class StoreOrdersService {
                 data.status = 'entregado';
             }
 
-            // ⏰ Calcular deliveryDate en Chile si no viene
-            if ((!data.deliveryDate || data.deliveryDate === '') && data.deliverySchedule?.day && data.deliverySchedule?.hour) {
+            // ⏰ Calcular deliveryDate en Chile si no viene.
+            // Basta con el DÍA (la hora es opcional en modo sin_horario / día opcional);
+            // getNextWeekdayDate usa mediodía cuando no hay hora. Así el pedido siempre
+            // obtiene un deliveryDate y entra a las colas del repartidor/panel.
+            if ((!data.deliveryDate || data.deliveryDate === '') && data.deliverySchedule?.day) {
                 const deliveryDate = this.getNextWeekdayDate(data.deliverySchedule.day, data.deliverySchedule.hour);
                 data.deliveryDate = deliveryDate;
             } else if (data.deliveryDate) {
@@ -250,6 +258,12 @@ export default class StoreOrdersService {
                 // Aquí asumimos que viene con fecha-hora ya correcta; si viene solo fecha:
                 const parsed = dayjs.tz(data.deliveryDate, TZ);
                 if (parsed.isValid()) data.deliveryDate = parsed.toDate();
+            }
+
+            // 🛟 Red de seguridad (modo sin_horario sin día): un domicilio sin fecha
+            // igual entra a las colas → se agenda para hoy (mediodía Chile).
+            if (!data.deliveryDate && data.deliveryType === 'domicilio') {
+                data.deliveryDate = dayjs().tz(TZ).hour(12).minute(0).second(0).millisecond(0).toDate();
             }
 
             // 👤 Completar datos de cliente

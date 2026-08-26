@@ -246,17 +246,26 @@ export default class ClientOrderService {
                     data.deliveryDate = targetUTC;
                     console.log('🧾 DELIVERY (explicit date):', { iso, targetUTC: targetUTC.toISOString() });
                 }
-            } else if (data.deliverySchedule?.day && data.deliverySchedule?.hour) {
+            } else if (data.deliverySchedule?.day) {
+                // Basta con el día: la hora es opcional (modo sin_horario / día opcional).
                 const deliveryDate = this.getNextWeekdayDate(
                     data.deliverySchedule.day,
                     data.deliverySchedule.hour
                 );
                 console.log('🧾 DELIVERY (weekday fallback):', {
                     day: data.deliverySchedule.day,
-                    hour: data.deliverySchedule.hour,
+                    hour: data.deliverySchedule.hour || '(sin hora)',
                     deliveryDateUTC: deliveryDate.toISOString()
                 });
                 data.deliveryDate = deliveryDate;
+            }
+
+            // 🛟 Red de seguridad (modo sin_horario sin día): un domicilio sin fecha
+            // igual debe entrar a las colas del repartidor/panel → se agenda para hoy.
+            if (!data.deliveryDate && String(data.deliveryType || '').toLowerCase() === 'domicilio') {
+                const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                const clNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Santiago' }));
+                data.deliveryDate = this.getNextWeekdayDate(days[clNow.getDay()], null);
             }
 
             // 👤 Buscar/crear usuario (incluye block)

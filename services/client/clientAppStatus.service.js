@@ -6,6 +6,7 @@ import Stores from '../../models/Stores.js';
 import Order from '../../models/Orders.js';
 import { zonePolygon, buildComunaPolyMap } from '../../libs/geo.js';
 import computeClosedDates from '../../utils/closedDates.js';
+import { startOfHour } from '../../utils/deliveryTime.js';
 
 export default class ClientAppStatusService {
     constructor() {
@@ -298,10 +299,11 @@ export default class ClientAppStatusService {
                     for (const [rawKey, isActive] of Object.entries(dayConfig.hours)) {
                         if (!isActive) continue;
 
-                        const [rawH = '0', rawM = '0'] = String(rawKey).split(':');
-                        const hh = Number(rawH);
-                        const mm = Number(rawM);
-                        if (!Number.isFinite(hh) || !Number.isFinite(mm)) continue;
+                        // Tolerante a los 3 formatos: "07:00", "12:00 AM" y rango "09:00 - 11:00".
+                        // Usamos SIEMPRE la hora de inicio del bloque para las comparaciones.
+                        const start = startOfHour(rawKey);
+                        if (!start) continue;
+                        const [hh, mm] = start.split(':').map(Number);
 
                         const slotCL = dateCL.set({ hour: hh, minute: mm, second: 0, millisecond: 0 });
 
@@ -312,8 +314,9 @@ export default class ClientAppStatusService {
                             if (slotCL <= nowCL) continue;
                         }
 
-                        // Si quieres conservar la clave original del horario, usa String(rawKey).trim()
-                        validHours[toHHmm(hh, mm)] = true;
+                        // Conservamos la CLAVE ORIGINAL (soporta rangos "09:00 - 11:00"),
+                        // para que el cliente reciba y reenvíe el bloque exacto.
+                        validHours[String(rawKey).trim()] = true;
                     }
 
                     if (Object.keys(validHours).length > 0) {
@@ -405,6 +408,7 @@ export default class ClientAppStatusService {
                         : (store.paymentmethod ?? []),
                     paymentFees: store.paymentFees ?? {},
                     taxPercent: Number.isFinite(Number(store.taxPercent)) ? Number(store.taxPercent) : 19,
+                    deliveryMode: store.deliveryMode || 'slots_chicos',
                     deliveryZones: formattedZones,
                 }
             };

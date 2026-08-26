@@ -99,6 +99,16 @@ const storeSchema = new Schema(
             default: [],
         },
 
+        // Modo de entrega por marca. Define cómo elige el cliente el horario:
+        //   slots_chicos  -> bloques de 1 hora (default; comportamiento histórico)
+        //   slots_grandes -> bloques amplios definidos por la tienda (ej. "10:00 - 12:00")
+        //   sin_horario   -> el cliente no elige hora (día opcional); se avisa por estado
+        deliveryMode: {
+            type: String,
+            enum: ['slots_chicos', 'slots_grandes', 'sin_horario'],
+            default: 'slots_chicos',
+        },
+
     },
     {
         timestamps: { createdAt: 'createdAt', updatedAt: 'editedAt' },

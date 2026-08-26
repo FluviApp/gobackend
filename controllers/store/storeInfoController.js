@@ -20,8 +20,8 @@ export default class StoreInfoController {
     updateStoreInfo = async (req, res) => {
         try {
             const { storeId } = req.query;
-            const { paymentFees, taxPercent, transferWhatsappMessage } = req.body || {};
-            const response = await storeInfoService.updateStoreInfo({ storeId, paymentFees, taxPercent, transferWhatsappMessage });
+            const { paymentFees, taxPercent, transferWhatsappMessage, deliveryMode } = req.body || {};
+            const response = await storeInfoService.updateStoreInfo({ storeId, paymentFees, taxPercent, transferWhatsappMessage, deliveryMode });
             return res.status(response.success ? 200 : 400).json(response);
         } catch (error) {
             console.error('❌ Controller - Error al actualizar info de la tienda:', error);

@@ -1,5 +1,6 @@
 import connectMongoDB from '../../libs/mongoose.js';
 import PaymentTransaction from '../../models/PaymentTransaction.js';
+import Order from '../../models/Orders.js';
 import ClientOrderService from '../client/ClientOrderService.js';
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 
@@ -898,6 +899,30 @@ export default class MercadoPagoService {
             if (trx.orderCreated && trx.orderId) {
                 // Ya vinculado
                 return { success: true, message: 'Pedido ya vinculado', data: { orderId: trx.orderId } };
+            }
+
+            // 🛡️ Candado por payment_id: un mismo pago de MercadoPago NO puede generar
+            // dos pedidos. Si este pago ya está vinculado a OTRO pedido (por otra
+            // transacción/preferencia), este pedido es un DUPLICADO fantasma: lo eliminamos
+            // y devolvemos el pedido original. Evita el bug de reutilización de pago.
+            const paymentId = trx.response?.id;
+            if (paymentId) {
+                const others = await PaymentTransaction.find({
+                    'response.id': paymentId,
+                    orderCreated: true,
+                    orderId: { $ne: null },
+                }).lean();
+                const conflict = others.find((t) => String(t.orderId) !== String(orderId));
+                if (conflict) {
+                    console.warn(`🛑 [MercadoPago] payment_id ${paymentId} ya usado en el pedido ${conflict.orderId}. Se evita duplicado y se elimina el pedido ${orderId}.`);
+                    await Order.deleteOne({ _id: orderId }).catch((e) => console.error('❌ Error eliminando pedido duplicado:', e));
+                    return {
+                        success: false,
+                        duplicate: true,
+                        message: 'Este pago ya fue usado en otro pedido; no se creó un duplicado.',
+                        data: { orderId: conflict.orderId },
+                    };
+                }
             }
 
             trx.orderCreated = true;

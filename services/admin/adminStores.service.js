@@ -92,6 +92,10 @@ export default class AdminStoresService {
                 phone: storeData.phone,
                 availableInMarketplace: storeData.availableInMarketplace === 'true' || storeData.availableInMarketplace === true,
                 image: imagePath, // ✅ Aquí asignamos la imagen correctamente
+                // Toda tienda nace con un modo de entrega (explícito, no solo por default del esquema)
+                deliveryMode: ['slots_chicos', 'slots_grandes', 'sin_horario'].includes(storeData.deliveryMode)
+                    ? storeData.deliveryMode
+                    : 'slots_chicos',
             });
 
             const savedStore = await newStore.save();

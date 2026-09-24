@@ -1,6 +1,7 @@
 import connectMongoDB from '../../libs/mongoose.js';
 import Client from '../../models/Clients.js';
 import Orders from '../../models/Orders.js';
+import getResendClient from '../../libs/resend.js';
 
 export default class StoreClientsService {
     constructor() {
@@ -268,6 +269,46 @@ export default class StoreClientsService {
                 success: false,
                 message: 'Error al filtrar clientes',
             };
+        }
+    };
+
+    // Envío masivo de campaña por email (Resend batch, en tandas de 100).
+    // recipients: [{ email, name }]; message puede incluir {nombre} (se reemplaza por destinatario).
+    sendCampaignEmail = async ({ recipients = [], subject, message }) => {
+        try {
+            const list = (recipients || []).filter(r => r && r.email);
+            if (!list.length) return { success: false, message: 'No hay destinatarios con email' };
+            if (!message || !String(message).trim()) return { success: false, message: 'El mensaje está vacío' };
+
+            const resend = getResendClient();
+            const subj = (subject && String(subject).trim()) || 'Fluvi 💧';
+            let sent = 0, failed = 0;
+
+            // Construir los emails, reemplazando {nombre}
+            const emails = list.map(r => {
+                const name = r.name || 'cliente';
+                const body = String(message).split('{nombre}').join(name);
+                const html = `<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.6;color:#10202e">${body.replace(/\n/g, '<br>')}</div>`;
+                return { from: 'Fluvi <hola@fluvi.cl>', to: r.email, subject: subj, html };
+            });
+
+            // Enviar en tandas de 100 (límite del batch de Resend)
+            for (let i = 0; i < emails.length; i += 100) {
+                const chunk = emails.slice(i, i + 100);
+                try {
+                    const res = await resend.batch.send(chunk);
+                    if (res?.error) { failed += chunk.length; console.error('❌ Batch Resend error:', res.error); }
+                    else sent += chunk.length;
+                } catch (e) {
+                    failed += chunk.length;
+                    console.error('❌ Error enviando tanda de campaña:', e?.message || e);
+                }
+            }
+
+            return { success: true, sent, failed, total: list.length, message: `Enviados: ${sent} · Fallidos: ${failed}` };
+        } catch (error) {
+            console.error('❌ Servicio - Error en campaña email:', error);
+            return { success: false, message: error?.message || 'Error al enviar la campaña' };
         }
     };
 }

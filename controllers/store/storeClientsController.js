@@ -107,4 +107,18 @@ export default class StoreClientsController {
             });
         }
     };
+
+    sendCampaignEmail = async (req, res) => {
+        try {
+            const { recipients, subject, message } = req.body || {};
+            if (!Array.isArray(recipients) || recipients.length === 0) {
+                return res.status(400).json({ success: false, message: 'recipients es obligatorio' });
+            }
+            const response = await storeClientsService.sendCampaignEmail({ recipients, subject, message });
+            return res.status(response.success ? 200 : 400).json(response);
+        } catch (error) {
+            console.error('❌ Controller - Error en campaña email:', error);
+            return res.status(500).json({ success: false, message: 'Error inesperado en la campaña' });
+        }
+    };
 }

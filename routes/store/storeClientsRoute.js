@@ -6,6 +6,7 @@ const storeClientsController = new StoreClientsController();
 
 
 router.get('/clients/filter', storeClientsController.getFilteredClients);
+router.post('/clients/campaign-email', storeClientsController.sendCampaignEmail);
 router.get('/clients', storeClientsController.getAllClients);
 router.post('/clients', storeClientsController.createClient);
 router.put('/clients/:id', storeClientsController.updateClient);

@@ -243,7 +243,10 @@ export default class StoreClientsService {
                         createdAt: 1,
                         totalSpent: { $ifNull: ['$orders.totalSpent', 0] },
                         lastOrderDate: '$orders.lastOrderDate',
-                        orderCount: { $ifNull: ['$orders.orderCount', 0] }
+                        orderCount: { $ifNull: ['$orders.orderCount', 0] },
+                        // Coordenadas del propio cliente (el modelo Clients guarda lat/lon)
+                        lat: 1,
+                        lon: 1
                     }
                 },
 

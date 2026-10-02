@@ -94,4 +94,19 @@ export default class StoreZonesController {
             });
         }
     };
+
+    // Chequeo de seguridad: cuántos clientes quedarían fuera de cobertura con el
+    // polígono propuesto (antes de guardar la edición/creación de una zona).
+    coverageImpact = async (req, res) => {
+        try {
+            const { storeId, zoneId = null, polygon = [] } = req.body;
+            const response = await service.coverageImpact({ storeId, zoneId, polygon });
+            return res.status(response.success ? 200 : 400).json(response);
+        } catch (error) {
+            return res.status(500).json({
+                success: false,
+                message: 'Error al calcular impacto de cobertura'
+            });
+        }
+    };
 }

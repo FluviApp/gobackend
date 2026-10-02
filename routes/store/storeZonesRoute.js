@@ -5,6 +5,7 @@ const router = express.Router();
 const controller = new StoreZonesController();
 
 router.get('/zones', controller.getAllZones);
+router.post('/zones/coverage-impact', controller.coverageImpact);
 router.post('/zones', controller.createZone);
 router.put('/zones/:id', controller.updateZone);
 router.delete('/zones/:id', controller.deleteZone);
